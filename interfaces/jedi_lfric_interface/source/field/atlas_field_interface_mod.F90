@@ -340,8 +340,11 @@ subroutine copy_from_lfric(self, return_code)
     ! Get LFRic and Atlas index
     lfric_ij = (ij-1)*n_vertical_lfric
     atlas_ij = self%map_horizontal(ij)
+
     self%atlas_data(atlas_kstart:atlas_kend:atlas_kdirection,atlas_ij) &
-      = field_proxy%data(lfric_ij+lfric_kstart:lfric_ij+n_vertical_lfric)
+      = 0.0_real64
+    self%atlas_data(atlas_kstart:atlas_kend:atlas_kdirection,atlas_ij) &
+      = real(field_proxy%data(lfric_ij+lfric_kstart:lfric_ij+n_vertical_lfric), real64)
   end do
 
   if ( present(return_code) ) return_code = 0_i_def
