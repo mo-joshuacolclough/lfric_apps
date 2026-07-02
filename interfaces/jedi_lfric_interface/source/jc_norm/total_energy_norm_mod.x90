@@ -1,0 +1,48 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!>@brief  Routines to create a J_c norm based on total energy.
+!>
+module total_energy_norm_mod
+
+  use constants_mod,                only: r_def
+  use field_mod,                    only: field_type
+  use field_array_mod,              only: field_array_type
+  use field_collection_mod,         only: field_collection_type
+  use log_mod,                      only: log_event, log_scratch_space, &
+                                          LOG_LEVEL_DEBUG
+
+  implicit none
+
+  private
+  public calculate_total_energy_norm
+
+  contains
+
+  !> @brief   Calculate the total energy norm for a given increment.
+  !> @param[in] increment_fields  Fields from the JEDI increment.
+  subroutine calculate_total_energy_norm( increment_fields, total_energy_norm_field )
+
+    implicit none
+
+    type( field_collection_type ), intent(in)  :: increment_fields
+    type( field_type ),            intent(out) :: total_energy_norm_field
+
+    call moisture_fields%get_field( "mr", mr_array )
+    call moisture_fields%get_field( "moist_dyn", moist_dyn_array )
+    mr => mr_array%bundle
+    moist_dyn => moist_dyn_array%bundle
+
+    ! Graupel and cloud ice crystal fields are set to zero. The other moisture
+    ! fields are updated directly.
+    call invoke( setval_C(mr(imr_g), 0.0_r_def), &
+                 setval_C(mr(imr_ci), 0.0_r_def) )
+
+    ! Update the moist dynamics
+    call tl_moist_dyn_factors_alg( moist_dyn, mr )
+
+  end subroutine calculate_total_energy_norm
+
+end module total_energy_norm_mod
