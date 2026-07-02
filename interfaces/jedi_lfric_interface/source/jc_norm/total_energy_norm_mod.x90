@@ -23,25 +23,22 @@ module total_energy_norm_mod
 
   !> @brief   Calculate the total energy norm for a given increment.
   !> @param[in] increment_fields  Fields from the JEDI increment.
-  subroutine calculate_total_energy_norm( increment_fields, total_energy_norm_field )
+
+  ! ===== TEMPORARY NOTES (TODO: rm) =====
+  ! For the increment: Assume it contains the correct model fields already, and atlas fields.
+
+  subroutine calculate_total_energy_norm( increment_fields)
 
     implicit none
 
-    type( field_collection_type ), intent(in)  :: increment_fields
-    type( field_type ),            intent(out) :: total_energy_norm_field
+    type( field_collection_type ), intent(inout)  :: increment_fields
 
-    call moisture_fields%get_field( "mr", mr_array )
-    call moisture_fields%get_field( "moist_dyn", moist_dyn_array )
-    mr => mr_array%bundle
-    moist_dyn => moist_dyn_array%bundle
+    type( field_type ), pointer :: total_energy_norm_field
 
-    ! Graupel and cloud ice crystal fields are set to zero. The other moisture
-    ! fields are updated directly.
-    call invoke( setval_C(mr(imr_g), 0.0_r_def), &
-                 setval_C(mr(imr_ci), 0.0_r_def) )
+    call increment_fields%get_field( "total_energy_norm", total_energy_norm_field ) 
 
-    ! Update the moist dynamics
-    call tl_moist_dyn_factors_alg( moist_dyn, mr )
+    ! Initialise to zero.
+    call invoke( setval_c(total_energy_norm_field, 0.0_r_def) )
 
   end subroutine calculate_total_energy_norm
 
