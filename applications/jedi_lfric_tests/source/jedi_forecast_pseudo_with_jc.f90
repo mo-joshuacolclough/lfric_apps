@@ -115,7 +115,7 @@ program jedi_forecast_pseudo_with_jc
   increment_jc_term_names(5) = "wind_factor"
   increment_jc_term_names(6) = "inv_wind_factor"
 
-  ! Create increment fields in field collection. TODO
+  ! Create increment fields in field collection.
   call increment_fields%initialise(name = "increment_fields", table_len=100)
   mesh3d => jedi_geometry%get_mesh()
   mesh2d => jedi_geometry%get_twod_mesh()
@@ -126,15 +126,17 @@ program jedi_forecast_pseudo_with_jc
 
   state_jc_term_names(1) = "rho"
   state_jc_term_names(2) = "theta"
-  ! Create state fields in field collection. TODO
+  ! Create state fields in field collection.
   call state_fields%initialise(name = "state_fields", table_len=100)
   call populate_field_collection(mesh3d, mesh2d, state_jc_term_names, state_fields)
 
   call jedi_state%get_to_field_collection(state_jc_term_names, state_fields)
 
+  ! Run calculation and set the increment
   call calculate_total_energy_norm(state_fields, increment_fields)
   call jedi_jc_norm_increment%set_from_field_collection(increment_jc_term_names, &
                                                         increment_fields)
+  call jedi_jc_norm_increment%print()
 
   ! Write a netCDF via XIOS at the last time step.
   ! Passing state%datetime to state to be consistent with the implementation

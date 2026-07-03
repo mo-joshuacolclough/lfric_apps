@@ -174,9 +174,7 @@ subroutine populate_field_collection(mesh3d, mesh2d, var_names, field_collection
     end if
 
     call add_real_field(field_collection, mesh, fspace_enum, var_names(i))
-    print*,"ADDED FIELD: ", var_names(i)
   end do
-
 
 end subroutine populate_field_collection
 
