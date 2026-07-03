@@ -11,7 +11,7 @@
 !>          i)  Function-space enumerator
 !>          ii) Logical defining if the field is 2D or 3D
 !>
-module jedi_setup_field_meta_data_mod
+module jedi_field_utils_mod
 
   use constants_mod,             only : i_def, str_def, l_def
   use fs_continuity_mod,         only : W3, Wtheta
@@ -25,7 +25,8 @@ module jedi_setup_field_meta_data_mod
 
   private
 
-  public setup_field_meta_data
+  public :: setup_field_meta_data
+  public :: populate_field_collection
 
   contains
 
@@ -78,6 +79,12 @@ module jedi_setup_field_meta_data_mod
       case ( "theta" )
         function_space = Wtheta
         is_2d = .false.
+      case ( "theta_factor" )
+        function_space = Wtheta
+        is_2d = .false.
+      case ( "inv_theta_factor" )
+        function_space = Wtheta
+        is_2d = .false.
       case ( "rho" )
         function_space = W3
         is_2d = .false.
@@ -111,9 +118,21 @@ module jedi_setup_field_meta_data_mod
       case ( "land_fraction" )
         function_space = W3
         is_2d = .true.
+      case ( "pressure_factor" )
+        function_space = W3
+        is_2d = .false.
+      case ( "inv_pressure_factor" )
+        function_space = W3
+        is_2d = .false.
+      case ( "wind_factor" )
+        function_space = W3
+        is_2d = .false.
+      case ( "inv_wind_factor" )
+        function_space = W3
+        is_2d = .false.
       case default
         write ( log_scratch_space, '(4A)' )                          &
-                "jedi_setup_field_meta_data_mod::get_field_info:: ", &
+                "jedi_field_utils_mod::get_field_info:: ", &
                 "The variable name: ",                               &
                 trim(variable_name),                                 &
                 " is not yet supported."
@@ -122,4 +141,43 @@ module jedi_setup_field_meta_data_mod
 
   end subroutine get_field_info
 
-end module jedi_setup_field_meta_data_mod
+! ------------------------------------------------------------------------------
+
+subroutine populate_field_collection(mesh3d, mesh2d, var_names, field_collection)
+
+  use function_space_mod,                only : function_space_type
+  use field_collection_mod,              only : field_collection_type
+  use field_mod,                         only : field_type
+  use finite_element_config_mod,         only : element_order_h, element_order_v
+  use mesh_mod,                          only : mesh_type
+
+  use jedi_lfric_utils_mod,              only : add_real_field
+
+  type(mesh_type),     pointer, intent(in) :: mesh3d
+  type(mesh_type),     pointer, intent(in) :: mesh2d
+  character( len=str_def ),    intent(in)  :: var_names(:)
+  type(field_collection_type), intent(inout) :: field_collection
+
+  ! Local
+  type(mesh_type), pointer           :: mesh
+  integer(kind=i_def)                :: fspace_enum
+  logical(kind=l_def)                :: is_2d
+  integer(kind=i_def)                :: i
+
+  do i = 1, size(var_names, dim=1)
+    call get_field_info(fspace_enum, is_2d, var_names(i))
+
+    if (is_2d) then
+      mesh => mesh2d
+    else
+      mesh => mesh3d
+    end if
+
+    call add_real_field(field_collection, mesh, fspace_enum, var_names(i))
+    print*,"ADDED FIELD: ", var_names(i)
+  end do
+
+
+end subroutine populate_field_collection
+
+end module jedi_field_utils_mod

@@ -23,6 +23,7 @@ program jedi_forecast_pseudo_with_jc
   use config_mod,                   only : config_type
   use constants_mod,                only : PRECISION_REAL, i_def, str_def
   use field_collection_mod,         only : field_collection_type
+  use mesh_mod,                     only : mesh_type
   use log_mod,                      only : log_event, log_scratch_space, &
                                            LOG_LEVEL_ALWAYS
 
@@ -35,6 +36,7 @@ program jedi_forecast_pseudo_with_jc
   use jedi_increment_mod,            only : jedi_increment_type
   use jedi_pseudo_model_mod,         only : jedi_pseudo_model_type
   use jedi_post_processor_empty_mod, only : jedi_post_processor_empty_type
+  use jedi_field_utils_mod,          only : populate_field_collection
 
   use total_energy_norm_mod,         only : calculate_total_energy_norm
 
@@ -57,6 +59,8 @@ program jedi_forecast_pseudo_with_jc
   type(jedi_duration_type)   :: forecast_length
   character(str_def)         :: forecast_length_str
 
+  type(mesh_type), pointer      :: mesh3d
+  type(mesh_type), pointer      :: mesh2d
   type( field_collection_type ) :: increment_fields
   type( field_collection_type ) :: state_fields
   character( len=str_def )      :: increment_jc_term_names(6)
@@ -111,11 +115,21 @@ program jedi_forecast_pseudo_with_jc
   increment_jc_term_names(5) = "wind_factor"
   increment_jc_term_names(6) = "inv_wind_factor"
 
+  ! Create increment fields in field collection. TODO
+  call increment_fields%initialise(name = "increment_fields", table_len=100)
+  mesh3d => jedi_geometry%get_mesh()
+  mesh2d => jedi_geometry%get_twod_mesh()
+  call populate_field_collection(mesh3d, mesh2d, increment_jc_term_names, increment_fields)
+
   call jedi_jc_norm_increment%get_to_field_collection(increment_jc_term_names, &
                                                       increment_fields)
 
   state_jc_term_names(1) = "rho"
   state_jc_term_names(2) = "theta"
+  ! Create state fields in field collection. TODO
+  call state_fields%initialise(name = "state_fields", table_len=100)
+  call populate_field_collection(mesh3d, mesh2d, state_jc_term_names, state_fields)
+
   call jedi_state%get_to_field_collection(state_jc_term_names, state_fields)
 
   call calculate_total_energy_norm(state_fields, increment_fields)

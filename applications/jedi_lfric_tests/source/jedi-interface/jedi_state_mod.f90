@@ -26,7 +26,7 @@ module jedi_state_mod
   use jedi_lfric_datetime_mod,        only : jedi_datetime_type
   use jedi_lfric_duration_mod,        only : jedi_duration_type
   use jedi_lfric_field_meta_mod,      only : jedi_lfric_field_meta_type
-  use jedi_setup_field_meta_data_mod, only : setup_field_meta_data
+  use jedi_field_utils_mod,           only : setup_field_meta_data
   use log_mod,                        only : log_event,          &
                                              log_scratch_space,  &
                                              LOG_LEVEL_INFO,     &

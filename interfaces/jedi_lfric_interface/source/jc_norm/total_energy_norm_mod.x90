@@ -50,20 +50,22 @@ module total_energy_norm_mod
 
     type( field_type ), pointer :: cell_volumes
     type( function_space_type ), pointer :: w3_fspace
+    type( function_space_type ), pointer :: wtheta_fspace
 
     nullify( ls_rho, ls_theta, &
              theta_factor, inv_theta_factor, &
              pressure_factor, inv_pressure_factor, &
              wind_factor, inv_wind_factor, &
              cell_volumes, &
-             w3_fspace )
+             w3_fspace, wtheta_fspace )
 
     ! Extract ls fields.
     call ls_state%get_field( "rho", ls_rho )
     call ls_state%get_field( "theta", ls_theta )
 
-    ! Get W3.
+    ! Get function spaces.
     w3_fspace => ls_rho%get_function_space()
+    wtheta_fspace => ls_theta%get_function_space()
 
     ! Extract output fields.
     call norm_increment_fields%get_field( "theta_factor", theta_factor )
@@ -74,7 +76,7 @@ module total_energy_norm_mod
     call norm_increment_fields%get_field( "inv_wind_factor", inv_wind_factor )
 
     ! Initialise temporary fields.
-    call avg_radh%copy_field_properties( ls_theta, name="avg_radh" )
+    call avg_radh%initialise(vector_space=w3_fspace, name="avg_radh")
 
     ! Fetch auxiliary fields.
     !cell_volumes => get_detj_at_w3_fv()
