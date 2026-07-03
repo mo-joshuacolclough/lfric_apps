@@ -7,13 +7,14 @@
 !>
 module total_energy_norm_mod
 
-  use constants_mod,                only: r_def
+  use constants_mod,                only: r_def, i_def
   use field_mod,                    only: field_type
+  use function_space_mod,           only: function_space_type
   use field_array_mod,              only: field_array_type
   use field_collection_mod,         only: field_collection_type
   use log_mod,                      only: log_event, log_scratch_space, &
                                           LOG_LEVEL_DEBUG
-
+  
   implicit none
 
   private
@@ -27,18 +28,59 @@ module total_energy_norm_mod
   ! ===== TEMPORARY NOTES (TODO: rm) =====
   ! For the increment: Assume it contains the correct model fields already, and atlas fields.
 
-  subroutine calculate_total_energy_norm( increment_fields)
+  subroutine calculate_total_energy_norm( ls_state, norm_increment_fields )
+
+    use extrusion_config_mod, only: planet_radius
 
     implicit none
 
-    type( field_collection_type ), intent(inout)  :: increment_fields
+    type( field_collection_type ), intent(in)     :: ls_state
+    type( field_collection_type ), intent(inout)  :: norm_increment_fields
 
-    type( field_type ), pointer :: total_energy_norm_field
+    type( field_type )          :: avg_radh
 
-    call increment_fields%get_field( "total_energy_norm", total_energy_norm_field ) 
+    type( field_type ), pointer :: ls_rho
+    type( field_type ), pointer :: ls_theta
+    type( field_type ), pointer :: theta_factor
+    type( field_type ), pointer :: inv_theta_factor
+    type( field_type ), pointer :: pressure_factor
+    type( field_type ), pointer :: inv_pressure_factor
+    type( field_type ), pointer :: wind_factor
+    type( field_type ), pointer :: inv_wind_factor
+
+    type( field_type ), pointer :: cell_volumes
+    type( function_space_type ), pointer :: w3_fspace
+
+    nullify( ls_rho, ls_theta, &
+             theta_factor, inv_theta_factor, &
+             pressure_factor, inv_pressure_factor, &
+             wind_factor, inv_wind_factor, &
+             cell_volumes, &
+             w3_fspace )
+
+    ! Extract ls fields.
+    call ls_state%get_field( "rho", ls_rho )
+    call ls_state%get_field( "theta", ls_theta )
+
+    ! Get W3.
+    w3_fspace => ls_rho%get_function_space()
+
+    ! Extract output fields.
+    call norm_increment_fields%get_field( "theta_factor", theta_factor )
+    call norm_increment_fields%get_field( "inv_theta_factor", inv_theta_factor )
+    call norm_increment_fields%get_field( "pressure_factor", pressure_factor )
+    call norm_increment_fields%get_field( "inv_pressure_factor", inv_pressure_factor )
+    call norm_increment_fields%get_field( "wind_factor", wind_factor )
+    call norm_increment_fields%get_field( "inv_wind_factor", inv_wind_factor )
+
+    ! Initialise temporary fields.
+    call avg_radh%copy_field_properties( ls_theta, name="avg_radh" )
+
+    ! Fetch auxiliary fields.
+    !cell_volumes => get_detj_at_w3_fv()
 
     ! Initialise to zero.
-    call invoke( setval_c(total_energy_norm_field, 0.0_r_def) )
+    call invoke( setval_c(theta_factor, 0.0_r_def) )
 
   end subroutine calculate_total_energy_norm
 
