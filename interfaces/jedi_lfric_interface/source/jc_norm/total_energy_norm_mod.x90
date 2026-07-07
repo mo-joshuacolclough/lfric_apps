@@ -39,13 +39,14 @@ module total_energy_norm_mod
     use extrusion_config_mod,         only: planet_radius
     use planet_config_mod,            only: gravity
     use sci_geometric_constants_mod,  only: get_detj_at_w3_fv, &
-                                            get_height_fv, &
-                                            get_coordinates, get_chi_inventory
+                                            get_height_fv
 
     use calc_energy_norm_theta_factor_kernel_mod, &
-        only: calc_energy_norm_theta_factor_kernel_type
+                                      only: calc_energy_norm_theta_factor_kernel_type
     use calc_energy_norm_pressure_factor_kernel_mod, &
-        only: calc_energy_norm_pressure_factor_kernel_type
+                                      only: calc_energy_norm_pressure_factor_kernel_type
+    use calc_energy_norm_wind_factor_kernel_mod, &
+                                      only: calc_energy_norm_wind_factor_kernel_type
 
     implicit none
 
@@ -54,29 +55,25 @@ module total_energy_norm_mod
     type( field_collection_type ), intent(inout)  :: norm_increment_fields
 
     ! Local
-    type( field_type )          :: avg_radh
-    type( field_type ), pointer :: ls_rho
-    type( field_type ), pointer :: ls_theta
-    type( field_type ), pointer :: theta_factor
-    type( field_type ), pointer :: inv_theta_factor
-    type( field_type ), pointer :: pressure_factor
-    type( field_type ), pointer :: inv_pressure_factor
-    type( field_type ), pointer :: wind_factor
-    type( field_type ), pointer :: inv_wind_factor
+    type( field_type )                   :: avg_radh
+    type( field_type ),          pointer :: ls_rho
+    type( field_type ),          pointer :: ls_theta
+    type( field_type ),          pointer :: theta_factor
+    type( field_type ),          pointer :: inv_theta_factor
+    type( field_type ),          pointer :: pressure_factor
+    type( field_type ),          pointer :: inv_pressure_factor
+    type( field_type ),          pointer :: wind_factor
+    type( field_type ),          pointer :: inv_wind_factor
 
-    type( field_type ), pointer :: cell_volumes
-    type( field_type ), pointer :: height
+    type( field_type ),          pointer :: cell_volumes
+    type( field_type ),          pointer :: height
     type( function_space_type ), pointer :: w3_fspace
     type( function_space_type ), pointer :: wtheta_fspace
-    type( mesh_type ), pointer  :: mesh
+    type( mesh_type ),           pointer :: mesh
 
-    ! TEMP TODO
-    type( inventory_by_mesh_type ), pointer :: chi_inventory
-    type( field_type ), pointer :: coords(:)
-
-    real( kind=r_def ) :: domain_area
-    real( kind=r_def ) :: buoyancy_freq
-    real( kind=r_def ) :: speed_of_sound
+    real( kind=r_def )                   :: domain_area
+    real( kind=r_def )                   :: buoyancy_freq
+    real( kind=r_def )                   :: speed_of_sound
 
     nullify( ls_rho, ls_theta, &
              theta_factor, inv_theta_factor, &
@@ -107,9 +104,6 @@ module total_energy_norm_mod
 
     ! Fetch auxiliary fields.
     mesh => w3_fspace%get_mesh()
-    chi_inventory => get_chi_inventory()
-    call chi_inventory%get_field_array(mesh, coords)
-
     cell_volumes => get_detj_at_w3_fv(mesh)
     height => get_height_fv(config, mesh, W3)
 
@@ -117,23 +111,28 @@ module total_energy_norm_mod
     domain_area = 4.0_r_def*PI*planet_radius**2
     buoyancy_freq = 1.0_r_def
     speed_of_sound = 1.0_r_def
-    call invoke( setval_c(avg_radh, planet_radius), &
-                 inc_X_plus_Y(avg_radh, height), &
-                 calc_energy_norm_theta_factor_kernel_type(theta_factor, &
-                                                           inv_theta_factor, &
-                                                           ls_theta, &
-                                                           ls_rho, &
-                                                           cell_volumes, &
-                                                           domain_area, &
-                                                           gravity, &
-                                                           buoyancy_freq), &
-                 calc_energy_norm_pressure_factor_kernel_type(pressure_factor, &
+    call invoke( setval_c(avg_radh, planet_radius),                                &
+                 inc_X_plus_Y(avg_radh, height),                                   &
+                 calc_energy_norm_theta_factor_kernel_type(theta_factor,           &
+                                                           inv_theta_factor,       &
+                                                           ls_theta,               &
+                                                           ls_rho,                 &
+                                                           cell_volumes,           &
+                                                           domain_area,            &
+                                                           gravity,                &
+                                                           buoyancy_freq),         &
+                 calc_energy_norm_pressure_factor_kernel_type(pressure_factor,     &
                                                               inv_pressure_factor, &
-                                                              ls_rho, &
-                                                              cell_volumes, &
-                                                              avg_radh, &
-                                                              domain_area, &
-                                                              speed_of_sound))
+                                                              ls_rho,              &
+                                                              cell_volumes,        &
+                                                              avg_radh,            &
+                                                              domain_area,         &
+                                                              speed_of_sound),     &
+                calc_energy_norm_wind_factor_kernel_type(wind_factor,              &
+                                                         inv_wind_factor,          &
+                                                         ls_rho,                   &
+                                                         cell_volumes,             &
+                                                         domain_area) )
 
   end subroutine calculate_total_energy_norm
 
