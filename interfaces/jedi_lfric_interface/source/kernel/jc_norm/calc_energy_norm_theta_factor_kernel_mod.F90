@@ -70,20 +70,20 @@ contains
   !! @param[in]      undf_w3        Number of degrees of freedom for W3
   !! @param[in]      map_w3         Dofmap for the cell at the base of the column for W3
   subroutine calc_energy_norm_theta_factor_kernel_code(nlayers,       &
-                                           factor,        &
-                                           inv_factor,    &
-                                           ls_theta,      &
-                                           ls_rho,        &
-                                           cell_vol,      &
-                                           area_domain,   &
-                                           grav_const,    &
-                                           buoyancy_freq, &
-                                           ndf_wth,       &
-                                           undf_wth,      &
-                                           map_wth,       &
-                                           ndf_w3,        &
-                                           undf_w3,       &
-                                           map_w3)
+                                                       factor,        &
+                                                       inv_factor,    &
+                                                       ls_theta,      &
+                                                       ls_rho,        &
+                                                       cell_vol,      &
+                                                       area_domain,   &
+                                                       grav_const,    &
+                                                       buoyancy_freq, &
+                                                       ndf_wth,       &
+                                                       undf_wth,      &
+                                                       map_wth,       &
+                                                       ndf_w3,        &
+                                                       undf_w3,       &
+                                                       map_w3)
 
     implicit none
 

@@ -41,7 +41,11 @@ module total_energy_norm_mod
     use sci_geometric_constants_mod,  only: get_detj_at_w3_fv, &
                                             get_height_fv, &
                                             get_coordinates, get_chi_inventory
-    use calc_energy_norm_theta_factor_kernel_mod, only: calc_energy_norm_theta_factor_kernel_type
+
+    use calc_energy_norm_theta_factor_kernel_mod, &
+        only: calc_energy_norm_theta_factor_kernel_type
+    use calc_energy_norm_pressure_factor_kernel_mod, &
+        only: calc_energy_norm_pressure_factor_kernel_type
 
     implicit none
 
@@ -72,6 +76,7 @@ module total_energy_norm_mod
 
     real( kind=r_def ) :: domain_area
     real( kind=r_def ) :: buoyancy_freq
+    real( kind=r_def ) :: speed_of_sound
 
     nullify( ls_rho, ls_theta, &
              theta_factor, inv_theta_factor, &
@@ -111,6 +116,7 @@ module total_energy_norm_mod
     ! Perform calculation
     domain_area = 4.0_r_def*PI*planet_radius**2
     buoyancy_freq = 1.0_r_def
+    speed_of_sound = 1.0_r_def
     call invoke( setval_c(avg_radh, planet_radius), &
                  inc_X_plus_Y(avg_radh, height), &
                  calc_energy_norm_theta_factor_kernel_type(theta_factor, &
@@ -120,7 +126,14 @@ module total_energy_norm_mod
                                                            cell_volumes, &
                                                            domain_area, &
                                                            gravity, &
-                                                           buoyancy_freq) )
+                                                           buoyancy_freq), &
+                 calc_energy_norm_pressure_factor_kernel_type(pressure_factor, &
+                                                              inv_pressure_factor, &
+                                                              ls_rho, &
+                                                              cell_volumes, &
+                                                              avg_radh, &
+                                                              domain_area, &
+                                                              speed_of_sound))
 
   end subroutine calculate_total_energy_norm
 
