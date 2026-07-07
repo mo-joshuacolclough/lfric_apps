@@ -8,13 +8,9 @@
 module total_energy_norm_mod
 
   use constants_mod,                only: r_def, i_def
-  use field_mod,                    only: field_type
-  use function_space_mod,           only: function_space_type
-  use field_array_mod,              only: field_array_type
-  use field_collection_mod,         only: field_collection_type
   use log_mod,                      only: log_event, log_scratch_space, &
                                           LOG_LEVEL_DEBUG
-  
+
   implicit none
 
   private
@@ -28,17 +24,33 @@ module total_energy_norm_mod
   ! ===== TEMPORARY NOTES (TODO: rm) =====
   ! For the increment: Assume it contains the correct model fields already, and atlas fields.
 
-  subroutine calculate_total_energy_norm( ls_state, norm_increment_fields )
+  subroutine calculate_total_energy_norm( config, ls_state, norm_increment_fields )
 
-    use extrusion_config_mod, only: planet_radius
+    use config_mod,                   only: config_type
+    use fs_continuity_mod,            only: W3
+    use inventory_by_mesh_mod,        only: inventory_by_mesh_type
+    use mesh_mod,                     only: mesh_type
+    use field_mod,                    only: field_type
+    use function_space_mod,           only: function_space_type
+    use field_array_mod,              only: field_array_type
+    use field_collection_mod,         only: field_collection_type
+
+    use constants_mod,                only: PI
+    use extrusion_config_mod,         only: planet_radius
+    use planet_config_mod,            only: gravity
+    use sci_geometric_constants_mod,  only: get_detj_at_w3_fv, &
+                                            get_height_fv, &
+                                            get_coordinates, get_chi_inventory
+    use calc_energy_norm_theta_factor_kernel_mod, only: calc_energy_norm_theta_factor_kernel_type
 
     implicit none
 
+    type( config_type ),           intent(in)     :: config
     type( field_collection_type ), intent(in)     :: ls_state
     type( field_collection_type ), intent(inout)  :: norm_increment_fields
 
+    ! Local
     type( field_type )          :: avg_radh
-
     type( field_type ), pointer :: ls_rho
     type( field_type ), pointer :: ls_theta
     type( field_type ), pointer :: theta_factor
@@ -49,15 +61,25 @@ module total_energy_norm_mod
     type( field_type ), pointer :: inv_wind_factor
 
     type( field_type ), pointer :: cell_volumes
+    type( field_type ), pointer :: height
     type( function_space_type ), pointer :: w3_fspace
     type( function_space_type ), pointer :: wtheta_fspace
+    type( mesh_type ), pointer  :: mesh
+
+    ! TEMP TODO
+    type( inventory_by_mesh_type ), pointer :: chi_inventory
+    type( field_type ), pointer :: coords(:)
+
+    real( kind=r_def ) :: domain_area
+    real( kind=r_def ) :: buoyancy_freq
 
     nullify( ls_rho, ls_theta, &
              theta_factor, inv_theta_factor, &
              pressure_factor, inv_pressure_factor, &
              wind_factor, inv_wind_factor, &
-             cell_volumes, &
-             w3_fspace, wtheta_fspace )
+             cell_volumes, height, &
+             w3_fspace, wtheta_fspace, &
+             mesh )
 
     ! Extract ls fields.
     call ls_state%get_field( "rho", ls_rho )
@@ -79,10 +101,26 @@ module total_energy_norm_mod
     call avg_radh%initialise(vector_space=w3_fspace, name="avg_radh")
 
     ! Fetch auxiliary fields.
-    !cell_volumes => get_detj_at_w3_fv()
+    mesh => w3_fspace%get_mesh()
+    chi_inventory => get_chi_inventory()
+    call chi_inventory%get_field_array(mesh, coords)
 
-    ! Initialise to zero.
-    call invoke( setval_c(theta_factor, 0.0_r_def) )
+    cell_volumes => get_detj_at_w3_fv(mesh)
+    height => get_height_fv(config, mesh, W3)
+
+    ! Perform calculation
+    domain_area = 4.0_r_def*PI*planet_radius**2
+    buoyancy_freq = 1.0_r_def
+    call invoke( setval_c(avg_radh, planet_radius), &
+                 inc_X_plus_Y(avg_radh, height), &
+                 calc_energy_norm_theta_factor_kernel_type(theta_factor, &
+                                                           inv_theta_factor, &
+                                                           ls_theta, &
+                                                           ls_rho, &
+                                                           cell_volumes, &
+                                                           domain_area, &
+                                                           gravity, &
+                                                           buoyancy_freq) )
 
   end subroutine calculate_total_energy_norm
 
