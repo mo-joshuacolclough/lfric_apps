@@ -6,8 +6,8 @@
 
 !> @page jedi_tlm_forecast_tl_with_jc program
 
-!> @brief Main program for running linear forecast with jedi emulator
-!>        objects.
+!> @brief Runs a linear forecast with JEDI emulator objects, and calculates
+!>        the Jc term total energy norm.
 !>
 !> @details Setup and run a linear model forecastTL using the JEDI
 !>          emulator objects. The linear state trajectory is provided via the
@@ -118,9 +118,6 @@ program jedi_tlm_forecast_tl_with_jc
   ! Run non-linear model forecast to populate the trajectory object
   call jedi_psuedo_model%forecast( jedi_state, forecast_length, pp_traj )
 
-  ! Run the linear model TL forecast
-  call jedi_linear_model%forecastTL( jedi_increment, forecast_length )
-
   ! Calculate JC term norm.
   ! = Get required fields into a field collection
   jc_increment_term_names(1) = "theta_factor"
@@ -129,26 +126,26 @@ program jedi_tlm_forecast_tl_with_jc
   jc_increment_term_names(4) = "inv_pressure_factor"
   jc_increment_term_names(5) = "wind_factor"
   jc_increment_term_names(6) = "inv_wind_factor"
-  call jc_increment_fields%initialise(name = "jc_increment_fields", table_len=100)
+  call jc_increment_fields%initialise( name = "jc_increment_fields", table_len=100 )
   mesh3d => jedi_geometry%get_mesh()
   mesh2d => jedi_geometry%get_twod_mesh()
-  call populate_field_collection(mesh3d, mesh2d, jc_increment_term_names, jc_increment_fields)
+  call populate_field_collection( mesh3d, mesh2d, jc_increment_term_names, jc_increment_fields )
   
-  call jedi_increment%get_to_field_collection(jc_increment_term_names, &
-                                              jc_increment_fields)
+  call jedi_increment%get_to_field_collection( jc_increment_term_names, &
+                                               jc_increment_fields )
 
   ! = Create state fields in field collection.
   jc_state_term_names(1) = "rho"
   jc_state_term_names(2) = "theta"
-  call jc_state_fields%initialise(name = "jc_state_fields", table_len=100)
-  call populate_field_collection(mesh3d, mesh2d, jc_state_term_names, jc_state_fields)
+  call jc_state_fields%initialise( name = "jc_state_fields", table_len=100 )
+  call populate_field_collection( mesh3d, mesh2d, jc_state_term_names, jc_state_fields )
 
-  call jedi_state%get_to_field_collection(jc_state_term_names, jc_state_fields)
+  call jedi_state%get_to_field_collection( jc_state_term_names, jc_state_fields )
 
   ! = Run calculation and set the increment
-  call calculate_total_energy_norm(config, jc_state_fields, jc_increment_fields)
-  call jedi_increment%set_from_field_collection(jc_increment_term_names, &
-                                                jc_increment_fields)
+  call calculate_total_energy_norm( config, jc_state_fields, jc_increment_fields )
+  call jedi_increment%set_from_field_collection( jc_increment_term_names, &
+                                                 jc_increment_fields )
 
   ! Print the final state and increment diagnostics
   call jedi_state%print()

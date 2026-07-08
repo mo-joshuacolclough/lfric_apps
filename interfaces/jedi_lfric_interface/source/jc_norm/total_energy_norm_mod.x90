@@ -3,8 +3,7 @@
 ! The file LICENCE, distributed with this code, contains details of the terms
 ! under which the code may be used.
 !-----------------------------------------------------------------------------
-!>@brief  Routines to create a J_c norm based on total energy.
-!>
+!> @brief  Routines to create a Jc norm based on total energy.
 module total_energy_norm_mod
 
   use constants_mod,                only: r_def, i_def
@@ -19,21 +18,20 @@ module total_energy_norm_mod
   contains
 
   !> @brief   Calculate the total energy norm for a given increment.
-  !> @param[in] increment_fields  Fields from the JEDI increment.
-
-  ! ===== TEMPORARY NOTES (TODO: rm) =====
-  ! For the increment: Assume it contains the correct model fields already, and atlas fields.
-
+  !> @param[in]    config Configuration required for gathering height information.
+  !> @param[in]    ls_state State fields to create the energy norm from.
+  !> @param[inout] norm_increment_fields Fields from the JEDI increment representing the norm term.
   subroutine calculate_total_energy_norm( config, ls_state, norm_increment_fields )
 
     use config_mod,                   only: config_type
-    use fs_continuity_mod,            only: W3
+    use fs_continuity_mod,            only: W3, Wtheta
     use inventory_by_mesh_mod,        only: inventory_by_mesh_type
     use mesh_mod,                     only: mesh_type
     use field_mod,                    only: field_type
     use function_space_mod,           only: function_space_type
     use field_array_mod,              only: field_array_type
     use field_collection_mod,         only: field_collection_type
+    use jedi_lfric_utils_mod,         only: add_real_field
 
     use constants_mod,                only: PI
     use extrusion_config_mod,         only: planet_radius
@@ -87,23 +85,46 @@ module total_energy_norm_mod
     call ls_state%get_field( "rho", ls_rho )
     call ls_state%get_field( "theta", ls_theta )
 
-    ! Get function spaces.
+    ! Get function spaces & mesh.
     w3_fspace => ls_rho%get_function_space()
     wtheta_fspace => ls_theta%get_function_space()
+    mesh => w3_fspace%get_mesh()
 
-    ! Extract output fields.
+    ! Create output fields.
+    if (.not. norm_increment_fields%field_exists("theta_factor")) then
+      call add_real_field(norm_increment_fields, mesh, Wtheta, "theta_factor")
+    end if
     call norm_increment_fields%get_field( "theta_factor", theta_factor )
+
+    if (.not. norm_increment_fields%field_exists("inv_theta_factor")) then
+      call add_real_field(norm_increment_fields, mesh, Wtheta, "inv_theta_factor")
+    end if
     call norm_increment_fields%get_field( "inv_theta_factor", inv_theta_factor )
+
+    if (.not. norm_increment_fields%field_exists("pressure_factor")) then
+      call add_real_field(norm_increment_fields, mesh, W3, "pressure_factor")
+    end if
     call norm_increment_fields%get_field( "pressure_factor", pressure_factor )
+
+    if (.not. norm_increment_fields%field_exists("inv_pressure_factor")) then
+      call add_real_field(norm_increment_fields, mesh, W3, "inv_pressure_factor")
+    end if
     call norm_increment_fields%get_field( "inv_pressure_factor", inv_pressure_factor )
+
+    if (.not. norm_increment_fields%field_exists("wind_factor")) then
+      call add_real_field(norm_increment_fields, mesh, W3, "wind_factor")
+    end if
     call norm_increment_fields%get_field( "wind_factor", wind_factor )
+
+    if (.not. norm_increment_fields%field_exists("inv_wind_factor")) then
+      call add_real_field(norm_increment_fields, mesh, W3, "inv_wind_factor")
+    end if
     call norm_increment_fields%get_field( "inv_wind_factor", inv_wind_factor )
 
     ! Initialise temporary fields.
     call avg_radh%initialise(vector_space=w3_fspace, name="avg_radh")
 
     ! Fetch auxiliary fields.
-    mesh => w3_fspace%get_mesh()
     cell_volumes => get_detj_at_w3_fv(mesh)
     height => get_height_fv(config, mesh, W3)
 
