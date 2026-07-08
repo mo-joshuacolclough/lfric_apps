@@ -1,36 +1,35 @@
 !-----------------------------------------------------------------------------
-! (C) Crown copyright 2023 Met Office. All rights reserved.
+! (C) Crown copyright 2026 Met Office. All rights reserved.
 ! The file LICENCE, distributed with this code, contains details of the terms
 ! under which the code may be used.
 !-----------------------------------------------------------------------------
 
-!> @page jedi_tlm_forecast_tl_with_jc program
+!> @page jedi_jc_norm program
 
 !> @brief Runs a linear forecast with JEDI emulator objects, and calculates
 !>        the Jc term total energy norm.
 !>
-!> @details Setup and run a linear model forecastTL using the JEDI
-!>          emulator objects. The linear state trajectory is provided via the
-!>          pseudo model forecast. The jedi objects are constructed via an
-!>          initialiser call and the forecasts are handled by the model
-!>          objects.
-!>
+!> @details Setup a linear model using the JEDI emulator objects. This is a
+!>          prerequisite as the Jc term requires model FEM information
+!>          such as the volume of cells. Once set up, calculate Jc norm term
+!>          on the linear state trajectory.
 
 ! Note: This program file represents generic OOPS code and so it should not be
 !       edited. If you need to make changes at the program level then please
 !       contact darth@metofice.gov.uk for advice.
-program jedi_tlm_forecast_tl_with_jc
+program jedi_jc_norm
 
   use cli_mod,                      only : parse_command_line
   use config_mod,                   only : config_type
   use constants_mod,                only : PRECISION_REAL, i_def, str_def
   use field_collection_mod,         only : field_collection_type
   use mesh_mod,                     only : mesh_type
+  use sci_checksum_alg_mod,         only : checksum_alg
   use log_mod,                      only : log_event, log_scratch_space, &
                                            LOG_LEVEL_ALWAYS
 
   ! Jedi emulator objects
-  use jedi_checksum_mod,            only : output_linear_checksum
+  use jedi_checksum_mod,            only : output_checksum
   use jedi_lfric_duration_mod,      only : jedi_duration_type
   use jedi_run_mod,                 only : jedi_run_type
   use jedi_geometry_mod,            only : jedi_geometry_type
@@ -39,9 +38,9 @@ program jedi_tlm_forecast_tl_with_jc
   use jedi_pseudo_model_mod,        only : jedi_pseudo_model_type
   use jedi_linear_model_mod,        only : jedi_linear_model_type
   use jedi_post_processor_traj_mod, only : jedi_post_processor_traj_type
-  use jedi_field_utils_mod,          only : populate_field_collection
+  use jedi_field_utils_mod,         only : populate_field_collection
 
-  use total_energy_norm_mod,         only : calculate_total_energy_norm
+  use total_energy_norm_mod,        only : calculate_total_energy_norm
 
   implicit none
 
@@ -70,7 +69,7 @@ program jedi_tlm_forecast_tl_with_jc
   character( len=str_def )      :: jc_state_term_names(2)
 
 
-  character(*), parameter :: program_name = "jedi_tlm_forecast_tl_with_jc"
+  character(*), parameter :: program_name = "jedi_jc_norm"
 
   ! Infrastructure config
   call parse_command_line( filename )
@@ -147,15 +146,14 @@ program jedi_tlm_forecast_tl_with_jc
   call jedi_increment%set_from_field_collection( jc_increment_term_names, &
                                                  jc_increment_fields )
 
-  ! Print the final state and increment diagnostics
-  call jedi_state%print()
+  ! Print the Jc increment diagnostics
   call jedi_increment%print()
 
   ! To provide KGO
-  call output_linear_checksum( program_name, jedi_linear_model%modeldb )
+  call checksum_alg( program_name, field_collection=jc_increment_fields )
 
   call log_event( 'Finalising ' // program_name // ' ...', LOG_LEVEL_ALWAYS )
 
   call jedi_run%finalise()
 
-end program jedi_tlm_forecast_tl_with_jc
+end program jedi_jc_norm
