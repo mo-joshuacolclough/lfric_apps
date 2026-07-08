@@ -143,39 +143,45 @@ module jedi_field_utils_mod
 
 ! ------------------------------------------------------------------------------
 
-subroutine populate_field_collection(mesh3d, mesh2d, var_names, field_collection)
+  !> @brief    Populate a field_collection with a list of given fields.
+  !>
+  !> @param [in] mesh3d  3D Mesh object to create fields on.
+  !> @param [in] mesh2d  2D Mesh object to create fields on.
+  !> @param [in] var_names  A list of variable names
+  !> @param [inout] field_collection  The field collection to populate.
+  subroutine populate_field_collection(mesh3d, mesh2d, var_names, field_collection)
 
-  use function_space_mod,                only : function_space_type
-  use field_collection_mod,              only : field_collection_type
-  use field_mod,                         only : field_type
-  use finite_element_config_mod,         only : element_order_h, element_order_v
-  use mesh_mod,                          only : mesh_type
+    use function_space_mod,                only : function_space_type
+    use field_collection_mod,              only : field_collection_type
+    use field_mod,                         only : field_type
+    use finite_element_config_mod,         only : element_order_h, element_order_v
+    use mesh_mod,                          only : mesh_type
 
-  use jedi_lfric_utils_mod,              only : add_real_field
+    use jedi_lfric_utils_mod,              only : add_real_field
 
-  type(mesh_type),     pointer, intent(in) :: mesh3d
-  type(mesh_type),     pointer, intent(in) :: mesh2d
-  character( len=str_def ),    intent(in)  :: var_names(:)
-  type(field_collection_type), intent(inout) :: field_collection
+    type(mesh_type),     pointer, intent(in) :: mesh3d
+    type(mesh_type),     pointer, intent(in) :: mesh2d
+    character( len=str_def ),    intent(in)  :: var_names(:)
+    type(field_collection_type), intent(inout) :: field_collection
 
-  ! Local
-  type(mesh_type), pointer           :: mesh
-  integer(kind=i_def)                :: fspace_enum
-  logical(kind=l_def)                :: is_2d
-  integer(kind=i_def)                :: i
+    ! Local
+    type(mesh_type), pointer           :: mesh
+    integer(kind=i_def)                :: fspace_enum
+    logical(kind=l_def)                :: is_2d
+    integer(kind=i_def)                :: i
 
-  do i = 1, size(var_names, dim=1)
-    call get_field_info(fspace_enum, is_2d, var_names(i))
+    do i = 1, size(var_names, dim=1)
+      call get_field_info(fspace_enum, is_2d, var_names(i))
 
-    if (is_2d) then
-      mesh => mesh2d
-    else
-      mesh => mesh3d
-    end if
+      if (is_2d) then
+        mesh => mesh2d
+      else
+        mesh => mesh3d
+      end if
 
-    call add_real_field(field_collection, mesh, fspace_enum, var_names(i))
-  end do
+      call add_real_field(field_collection, mesh, fspace_enum, var_names(i))
+    end do
 
-end subroutine populate_field_collection
+  end subroutine populate_field_collection
 
 end module jedi_field_utils_mod
