@@ -13,6 +13,7 @@
         "jedi_lfric_tests_forecast_gh-si-for-linear-C12_gadi_intel_fast-debug-64bit",
         "jedi_lfric_tests_forecast_pseudo_default-C12_gadi_intel_fast-debug-64bit",
         "jedi_lfric_tests_forecast_pseudo_pseudomodel-C12_gadi_intel_fast-debug-64bit",
+        "jedi_lfric_tests_jc_norm_default-C12_gadi_intel_fast-debug-64bit",
         "jedi_lfric_tests_tlm_forecast_tl_default-C12_gadi_intel_fast-debug-64bit",
         "jedi_lfric_tests_id_tlm_tests_default-C12_gadi_intel_fast-debug-64bit",
         "jedi_lfric_tests_id_tlm_tests_default-1PE-C12_gadi_intel_fast-debug-64bit",

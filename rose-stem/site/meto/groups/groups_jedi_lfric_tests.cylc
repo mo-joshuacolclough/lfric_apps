@@ -1,5 +1,5 @@
 {# ########################################################################### #}
-{# (c) Crown copyright 2024 Met Office. All rights reserved. #}
+{# (c) Crown copyright 2024-2026 Met Office. All rights reserved. #}
 {# The file LICENCE, distributed with this code, contains details of the terms #}
 {# under which the code may be used. #}
 {# ########################################################################### #}
@@ -16,6 +16,8 @@
         "jedi_lfric_tests_forecast_pseudo_default-C12_azspice_gnu_fast-debug-64bit",
         "jedi_lfric_tests_forecast_pseudo_pseudomodel-C12_azspice_gnu_fast-debug-64bit",
         "jedi_lfric_tests_forecast_pseudo_pseudomodel-C12_azspice_gnu_full-debug-64bit",
+        "jedi_lfric_tests_jc_norm-C12_azspice_gnu_fast-debug-64bit",
+        "jedi_lfric_tests_jc_norm-C12_azspice_gnu_full-debug-64bit",
         "jedi_lfric_tests_tlm_forecast_tl_nwp_gal9-C12_MG_azspice_gnu_fast-debug-64bit",
         "jedi_lfric_tests_id_tlm_tests_nwp_gal9-C12_MG_azspice_gnu_fast-debug-64bit",
         "jedi_lfric_tests_id_tlm_tests_nwp_gal9-1PE-C12_MG_azspice_gnu_fast-debug-64bit",
@@ -58,6 +60,7 @@
         "jedi_lfric_tests_forecast_gh-si-for-linear-C12_ex1a_cce_fast-debug-64bit",
         "jedi_lfric_tests_forecast_pseudo_default-C12_ex1a_cce_fast-debug-64bit",
         "jedi_lfric_tests_forecast_pseudo_pseudomodel-C12_ex1a_cce_fast-debug-64bit",
+        "jedi_lfric_tests_jc_norm-C12_ex1a_cce_fast-debug-64bit",
         "jedi_lfric_tests_tlm_forecast_tl_nwp_gal9-C12_MG_ex1a_cce_fast-debug-64bit",
         "jedi_lfric_tests_id_tlm_tests_nwp_gal9-C12_MG_ex1a_cce_fast-debug-64bit",
         "jedi_lfric_tests_id_tlm_tests_nwp_gal9-1PE-C12_MG_ex1a_cce_fast-debug-64bit",

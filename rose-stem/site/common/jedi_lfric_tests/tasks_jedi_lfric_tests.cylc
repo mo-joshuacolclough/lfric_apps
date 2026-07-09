@@ -60,6 +60,18 @@
         "mpi_parts": 6,
     }) %}
 
+{% elif task_ns.conf_name == "jc_norm-C12" %}
+
+    {% do task_dict.update({
+        "app_name": "jedi_jc_norm",
+        "opt_confs": ["C12"],
+        "resolution": "C12",
+        "ancil_resolution": "C12",
+        "DT": 3600,
+        "tsteps": 7,
+        "mpi_parts": 6,
+    }) %}
+
 {% elif task_ns.conf_name == "tlm_forecast_tl_nwp_gal9-C12_MG" %}
 
     {% do task_dict.update({
