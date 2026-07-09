@@ -48,6 +48,7 @@ program jedi_jc_norm
   type( jedi_geometry_type )            :: jedi_geometry
   type( jedi_state_type )               :: jedi_state
   type( jedi_increment_type )           :: jedi_increment
+  type( jedi_increment_type )           :: jedi_increment_inv
   type( jedi_pseudo_model_type )        :: jedi_psuedo_model
   type( jedi_linear_model_type )        :: jedi_linear_model
   type( jedi_run_type )                 :: jedi_run
@@ -64,8 +65,9 @@ program jedi_jc_norm
   type(mesh_type), pointer      :: mesh3d
   type(mesh_type), pointer      :: mesh2d
   type( field_collection_type ) :: jc_increment_fields
+  type( field_collection_type ) :: inv_jc_increment_fields
   type( field_collection_type ) :: jc_state_fields
-  character( len=str_def )      :: jc_increment_term_names(6)
+  character( len=str_def )      :: jc_increment_term_names(4)
   character( len=str_def )      :: jc_state_term_names(2)
 
 
@@ -104,6 +106,7 @@ program jedi_jc_norm
 
   ! Create increment
   call jedi_increment%initialise( jedi_geometry, config )
+  call jedi_increment_inv%initialise( jedi_geometry, config )
 
   ! Create linear model
   call jedi_linear_model%initialise( jedi_geometry, filename )
@@ -119,19 +122,21 @@ program jedi_jc_norm
 
   ! Calculate JC term norm.
   ! = Get required fields into a field collection
-  jc_increment_term_names(1) = "theta_factor"
-  jc_increment_term_names(2) = "inv_theta_factor"
-  jc_increment_term_names(3) = "pressure_factor"
-  jc_increment_term_names(4) = "inv_pressure_factor"
-  jc_increment_term_names(5) = "wind_factor"
-  jc_increment_term_names(6) = "inv_wind_factor"
+  jc_increment_term_names(1) = "theta"
+  jc_increment_term_names(2) = "pressure_in_w3"
+  jc_increment_term_names(3) = "u_in_w3"
+  jc_increment_term_names(4) = "v_in_w3"
   call jc_increment_fields%initialise( name = "jc_increment_fields", table_len=100 )
+  call inv_jc_increment_fields%initialise( name = "inv_jc_increment_fields", table_len=100 )
   mesh3d => jedi_geometry%get_mesh()
   mesh2d => jedi_geometry%get_twod_mesh()
   call populate_field_collection( mesh3d, mesh2d, jc_increment_term_names, jc_increment_fields )
+  call populate_field_collection( mesh3d, mesh2d, jc_increment_term_names, inv_jc_increment_fields )
   
   call jedi_increment%get_to_field_collection( jc_increment_term_names, &
                                                jc_increment_fields )
+  call jedi_increment_inv%get_to_field_collection( jc_increment_term_names, &
+                                                   inv_jc_increment_fields )
 
   ! = Create state fields in field collection.
   jc_state_term_names(1) = "rho"
@@ -142,12 +147,17 @@ program jedi_jc_norm
   call jedi_state%get_to_field_collection( jc_state_term_names, jc_state_fields )
 
   ! = Run calculation and set the increment
-  call calculate_total_energy_norm( config, jc_state_fields, jc_increment_fields )
+  call calculate_total_energy_norm( config, jc_state_fields, &
+                                    jc_increment_fields, inv_jc_increment_fields )
   call jedi_increment%set_from_field_collection( jc_increment_term_names, &
                                                  jc_increment_fields )
 
+  call jedi_increment_inv%set_from_field_collection( jc_increment_term_names, &
+                                                     inv_jc_increment_fields )
+
   ! Print the Jc increment diagnostics
   call jedi_increment%print()
+  call jedi_increment_inv%print()
 
   ! To provide KGO
   call checksum_alg( program_name, field_collection=jc_increment_fields )

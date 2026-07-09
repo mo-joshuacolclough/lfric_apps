@@ -21,7 +21,12 @@ module total_energy_norm_mod
   !> @param[in]    config Configuration required for gathering height information.
   !> @param[in]    ls_state State fields to create the energy norm from.
   !> @param[inout] norm_increment_fields Fields from the JEDI increment representing the norm term.
-  subroutine calculate_total_energy_norm( config, ls_state, norm_increment_fields )
+  !> @param[inout] inv_norm_increment_fields Fields from the JEDI increment representing the
+  !>               inverse norm term.
+  subroutine calculate_total_energy_norm( config, &
+                                          ls_state, &
+                                          norm_increment_fields, &
+                                          inv_norm_increment_fields )
 
     use config_mod,                   only: config_type
     use fs_continuity_mod,            only: W3, Wtheta
@@ -51,17 +56,23 @@ module total_energy_norm_mod
     type( config_type ),           intent(in)     :: config
     type( field_collection_type ), intent(in)     :: ls_state
     type( field_collection_type ), intent(inout)  :: norm_increment_fields
+    type( field_collection_type ), intent(inout)  :: inv_norm_increment_fields
 
     ! Local
     type( field_type )                   :: avg_radh
+    type( field_type )                   :: wind_factor
+    type( field_type )                   :: inv_wind_factor
+
     type( field_type ),          pointer :: ls_rho
     type( field_type ),          pointer :: ls_theta
     type( field_type ),          pointer :: theta_factor
     type( field_type ),          pointer :: inv_theta_factor
     type( field_type ),          pointer :: pressure_factor
     type( field_type ),          pointer :: inv_pressure_factor
-    type( field_type ),          pointer :: wind_factor
-    type( field_type ),          pointer :: inv_wind_factor
+    type( field_type ),          pointer :: u_in_w3_factor
+    type( field_type ),          pointer :: inv_u_in_w3_factor
+    type( field_type ),          pointer :: v_in_w3_factor
+    type( field_type ),          pointer :: inv_v_in_w3_factor
 
     type( field_type ),          pointer :: cell_volumes
     type( field_type ),          pointer :: height
@@ -76,7 +87,8 @@ module total_energy_norm_mod
     nullify( ls_rho, ls_theta, &
              theta_factor, inv_theta_factor, &
              pressure_factor, inv_pressure_factor, &
-             wind_factor, inv_wind_factor, &
+             u_in_w3_factor, inv_u_in_w3_factor, &
+             v_in_w3_factor, inv_v_in_w3_factor, &
              cell_volumes, height, &
              w3_fspace, wtheta_fspace, &
              mesh )
@@ -91,38 +103,51 @@ module total_energy_norm_mod
     mesh => w3_fspace%get_mesh()
 
     ! Create output fields.
-    if (.not. norm_increment_fields%field_exists("theta_factor")) then
-      call add_real_field(norm_increment_fields, mesh, Wtheta, "theta_factor")
+    if (.not. norm_increment_fields%field_exists("theta")) then
+      call add_real_field(norm_increment_fields, mesh, Wtheta, "theta")
     end if
-    call norm_increment_fields%get_field( "theta_factor", theta_factor )
+    call norm_increment_fields%get_field( "theta", theta_factor )
 
-    if (.not. norm_increment_fields%field_exists("inv_theta_factor")) then
-      call add_real_field(norm_increment_fields, mesh, Wtheta, "inv_theta_factor")
+    if (.not. inv_norm_increment_fields%field_exists("theta")) then
+      call add_real_field(inv_norm_increment_fields, mesh, Wtheta, "theta")
     end if
-    call norm_increment_fields%get_field( "inv_theta_factor", inv_theta_factor )
+    call inv_norm_increment_fields%get_field( "theta", inv_theta_factor )
 
-    if (.not. norm_increment_fields%field_exists("pressure_factor")) then
-      call add_real_field(norm_increment_fields, mesh, W3, "pressure_factor")
+    if (.not. norm_increment_fields%field_exists("pressure_in_w3")) then
+      call add_real_field(norm_increment_fields, mesh, W3, "pressure_in_w3")
     end if
-    call norm_increment_fields%get_field( "pressure_factor", pressure_factor )
+    call norm_increment_fields%get_field( "pressure_in_w3", pressure_factor )
 
-    if (.not. norm_increment_fields%field_exists("inv_pressure_factor")) then
-      call add_real_field(norm_increment_fields, mesh, W3, "inv_pressure_factor")
+    if (.not. inv_norm_increment_fields%field_exists("pressure_in_w3")) then
+      call add_real_field(inv_norm_increment_fields, mesh, W3, "pressure_in_w3")
     end if
-    call norm_increment_fields%get_field( "inv_pressure_factor", inv_pressure_factor )
+    call inv_norm_increment_fields%get_field( "pressure_in_w3", inv_pressure_factor )
 
-    if (.not. norm_increment_fields%field_exists("wind_factor")) then
-      call add_real_field(norm_increment_fields, mesh, W3, "wind_factor")
+    if (.not. norm_increment_fields%field_exists("u_in_w3")) then
+      call add_real_field(norm_increment_fields, mesh, W3, "u_in_w3")
     end if
-    call norm_increment_fields%get_field( "wind_factor", wind_factor )
+    call norm_increment_fields%get_field( "u_in_w3", u_in_w3_factor )
 
-    if (.not. norm_increment_fields%field_exists("inv_wind_factor")) then
-      call add_real_field(norm_increment_fields, mesh, W3, "inv_wind_factor")
+    if (.not. inv_norm_increment_fields%field_exists("u_in_w3")) then
+      call add_real_field(inv_norm_increment_fields, mesh, W3, "u_in_w3")
     end if
-    call norm_increment_fields%get_field( "inv_wind_factor", inv_wind_factor )
+    call inv_norm_increment_fields%get_field( "u_in_w3", inv_u_in_w3_factor )
+
+    if (.not. norm_increment_fields%field_exists("v_in_w3")) then
+      call add_real_field(norm_increment_fields, mesh, W3, "v_in_w3")
+    end if
+    call norm_increment_fields%get_field( "v_in_w3", v_in_w3_factor )
+
+    if (.not. inv_norm_increment_fields%field_exists("v_in_w3")) then
+      call add_real_field(inv_norm_increment_fields, mesh, W3, "v_in_w3")
+    end if
+    call inv_norm_increment_fields%get_field( "v_in_w3", inv_v_in_w3_factor )
+
 
     ! Initialise temporary fields.
     call avg_radh%initialise(vector_space=w3_fspace, name="avg_radh")
+    call wind_factor%initialise(vector_space=w3_fspace, name="wind_factor")
+    call inv_wind_factor%initialise(vector_space=w3_fspace, name="inv_wind_factor")
 
     ! Fetch auxiliary fields.
     cell_volumes => get_detj_at_w3_fv(mesh)
@@ -153,7 +178,11 @@ module total_energy_norm_mod
                                                          inv_wind_factor,          &
                                                          ls_rho,                   &
                                                          cell_volumes,             &
-                                                         domain_area) )
+                                                         domain_area),             &
+                setval_X(u_in_w3_factor, wind_factor),                             &
+                setval_X(v_in_w3_factor, wind_factor),                             &
+                setval_X(inv_u_in_w3_factor, inv_wind_factor),                     &
+                setval_X(inv_v_in_w3_factor, inv_wind_factor) )
 
   end subroutine calculate_total_energy_norm
 

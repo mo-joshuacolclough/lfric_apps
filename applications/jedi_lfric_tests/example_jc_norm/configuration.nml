@@ -18,8 +18,7 @@ variables='theta','rho','exner','u_in_w3','v_in_w3','w_in_wth','m_v',
 &jedi_increment
 inc_time='2018-04-14 21:00:00',
 initialise_via_read=.false.,
-variables='theta_factor','inv_theta_factor','pressure_factor',
-'inv_pressure_factor','wind_factor','inv_wind_factor'
+variables='theta','pressure_in_w3','u_in_w3','v_in_w3'
 /
 &jedi_linear_model
 incremental_wind_interpolation=.false.,

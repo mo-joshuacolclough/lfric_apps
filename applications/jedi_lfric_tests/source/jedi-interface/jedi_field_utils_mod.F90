@@ -118,16 +118,7 @@ module jedi_field_utils_mod
       case ( "land_fraction" )
         function_space = W3
         is_2d = .true.
-      case ( "pressure_factor" )
-        function_space = W3
-        is_2d = .false.
-      case ( "inv_pressure_factor" )
-        function_space = W3
-        is_2d = .false.
-      case ( "wind_factor" )
-        function_space = W3
-        is_2d = .false.
-      case ( "inv_wind_factor" )
+      case ( "pressure_in_w3" )
         function_space = W3
         is_2d = .false.
       case default
