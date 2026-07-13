@@ -186,6 +186,6 @@ contains
 
     cell_volumes => get_detj_at_w3_fv(mesh)
 
-  end get_cell_volumes
+  end function get_cell_volumes
 
 end module jedi_lfric_mesh_interface_mod
