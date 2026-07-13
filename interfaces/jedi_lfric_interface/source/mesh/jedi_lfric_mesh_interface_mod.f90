@@ -182,7 +182,7 @@ contains
 
     type(mesh_type), intent(in) :: mesh
 
-    type(field_type), pointer :: cell_columes
+    type(field_type), pointer :: cell_volumes
 
     cell_volumes => get_detj_at_w3_fv(mesh)
 
