@@ -177,7 +177,7 @@ contains
   !> @brief Get the volumes of each cell in W3.
   !>
   !> @return  Cell volume field pointer.
-  function get_cell_volumes() result(cell_volumes)
+  function get_cell_volumes(mesh) result(cell_volumes)
     implicit none
 
     type(mesh_type), intent(in) :: mesh
