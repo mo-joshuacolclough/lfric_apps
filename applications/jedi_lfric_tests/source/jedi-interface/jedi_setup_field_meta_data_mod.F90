@@ -78,6 +78,18 @@ module jedi_setup_field_meta_data_mod
       case ( "theta" )
         function_space = Wtheta
         is_2d = .false.
+      case ( "pressure_in_wth" )
+        function_space = Wtheta
+        is_2d = .false.
+      case ( "bulk_fraction" )
+        function_space = Wtheta
+        is_2d = .false.
+      case ( "exner_in_wth" )
+        function_space = Wtheta
+        is_2d = .false.
+      case ( "pressure_in_w3" )
+        function_space = W3
+        is_2d = .false.
       case ( "rho" )
         function_space = W3
         is_2d = .false.
@@ -91,6 +103,12 @@ module jedi_setup_field_meta_data_mod
         function_space = W3
         is_2d = .false.
       case ( "w_in_wth" )
+        function_space = Wtheta
+        is_2d = .false.
+      case ( "height_w3" )
+        function_space = W3
+        is_2d = .false.
+      case ( "height_wth" )
         function_space = Wtheta
         is_2d = .false.
       case ( "m_v" )
@@ -108,7 +126,43 @@ module jedi_setup_field_meta_data_mod
       case ( "u10m" )
         function_space = W3
         is_2d = .true.
+      case ( "v10m" )
+        function_space = W3
+        is_2d = .true.
       case ( "land_fraction" )
+        function_space = W3
+        is_2d = .true.
+      case ( "sea_ice_fraction" )
+        function_space = W3
+        is_2d = .true.
+      case ( "frozen_fraction" )
+        function_space = W3
+        is_2d = .true.
+      case ( "liquid_fraction" )
+        function_space = W3
+        is_2d = .true.
+      case ( "ustar" )
+        function_space = W3
+        is_2d = .true.
+      case ( "pstar" )
+        function_space = W3
+        is_2d = .true.
+      case ( "pmsl" )
+        function_space = W3
+        is_2d = .true.
+      case ( "t1p5m" )
+        function_space = W3
+        is_2d = .true.
+      case ( "oblen" )
+        function_space = W3
+        is_2d = .true.
+      case ( "rh1p5m" )
+        function_space = W3
+        is_2d = .true.
+      case ( "grid_surface_temperature" )
+        function_space = W3
+        is_2d = .true.
+      case ( "orography" )
         function_space = W3
         is_2d = .true.
       case default

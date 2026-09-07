@@ -213,6 +213,7 @@ subroutine state_initialiser( self, geometry, config )
 
   self%geometry => geometry
   n_variables = self%field_meta_data%get_n_variables()
+  print*, "NVARS => ", n_variables
 
   allocate( self%fields(n_variables) )
 
