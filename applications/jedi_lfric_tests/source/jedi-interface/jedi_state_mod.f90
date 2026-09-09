@@ -46,10 +46,6 @@ type, public :: jedi_state_type
   !> An object that stores the field meta-data associated with the fields
   type( jedi_lfric_field_meta_type )              :: field_meta_data
 
-  !> Interface field linking the Atlas emulator fields and LFRic fields in the
-  !> modeldb (to do field copies)
-  type( atlas_field_interface_type ), allocatable :: fields_to_modeldb(:)
-
   !> Logical that indicates the state has an instance of a modeldb that has been created
   logical                                         :: has_a_modeldb = .false.
 
@@ -72,10 +68,6 @@ contains
   !> Jedi state initialiser.
   procedure :: initialise => state_initialiser_read
   procedure :: state_initialiser
-
-  !> Setup the atlas_field_interface_type that enables copying between Atlas
-  !> field emulators and the LFRic fields in the modeldb
-  procedure, private :: setup_interface_to_modeldb
 
   !> Setup the atlas_field_interface_type that enables copying between Atlas
   !> field emulators and the fields in a LFRic field collection
@@ -107,7 +99,7 @@ contains
 
   !> Copy the data in the LFRic fields stored in the modeldb to the internal
   !> Atlas field emulators
-  procedure, public :: from_modeldb
+  procedure, public :: read_from_nl
 
   !> Finalizer
   final             :: jedi_state_destructor
@@ -171,8 +163,7 @@ subroutine state_initialiser_read( self,     &
     call initialise_modeldb( "non-linear modeldb", modeldb_filename, &
                              geometry%get_mpi_comm(), self%modeldb )
     self%has_a_modeldb = .true.
-    call self%setup_interface_to_modeldb()
-    call self%from_modeldb()
+    call self%read_from_nl()
   end if
 
 end subroutine state_initialiser_read
@@ -362,12 +353,12 @@ subroutine write_file( self, write_time )
 
 end subroutine write_file
 
-!> @brief    Setup fields_to_modeldb variable that enables copying between
-!>           Atlas field emulators and the LFRic fields in the modeldb
+!> @brief    Copy from modeldb to the Atlas field emulators
 !>
-subroutine setup_interface_to_modeldb( self )
+subroutine read_from_nl( self )
 
-  use jedi_lfric_utils_mod,  only: get_model_field
+  use jedi_lfric_utils_mod,  only: get_model_field, &
+                                   get_jedi_diagnostic
   use field_mod,             only: field_type
 
   implicit none
@@ -375,65 +366,75 @@ subroutine setup_interface_to_modeldb( self )
   class( jedi_state_type ), intent(inout) :: self
 
   ! Local
-  integer(i_def)            :: ivar
-  type(field_type), pointer :: lfric_field_ptr
-  real(real64),     pointer :: atlas_data_ptr(:,:)
-  integer(i_def),   pointer :: horizontal_map_ptr(:)
-  integer(i_def)            :: n_variables
+  integer(i_def)                :: ivar
+  type(field_type), pointer     :: lfric_field_ptr
+  type(field_type), allocatable :: diagnostic_field
+  real(real64),     pointer     :: atlas_data_ptr(:,:)
+  integer(i_def),   pointer     :: horizontal_map_ptr(:)
+  integer(i_def)                :: n_variables
+
+  type( atlas_field_interface_type ), allocatable :: field_interface
+
+  logical(l_def)            :: field_found
 
   type( field_collection_type ), pointer :: depository
+  type( field_collection_type ), pointer :: prognostic_fields
+  type( field_collection_type ), pointer :: diagnostic_fields
 
-  nullify(depository)
+  nullify(depository, prognostic_fields, diagnostic_fields)
   depository => self%modeldb%fields%get_field_collection("depository")
+  prognostic_fields => self%modeldb%fields%get_field_collection("prognostic_fields")
+  diagnostic_fields => self%modeldb%fields%get_field_collection("diagnostic_fields")
 
   n_variables = self%field_meta_data%get_n_variables()
-
-  ! Allocate space for the interface fields
-  if ( allocated( self%fields_to_modeldb ) ) then
-    deallocate( self%fields_to_modeldb )
-  endif
-  allocate( self%fields_to_modeldb( n_variables ) )
 
   ! Link the Atlas emulator fields with lfric fields
   call self%geometry%get_horizontal_map(horizontal_map_ptr)
   do ivar=1, n_variables
-
     ! Get the required data
-    call get_model_field( self%field_meta_data%get_variable_name(ivar), &
-                          depository, lfric_field_ptr )
+    field_found = get_model_field( self%field_meta_data%get_variable_name(ivar), &
+                                   depository, lfric_field_ptr )
+    if (.not. field_found) then
+      call log_event("State not found in depo. Looking in prog.", LOG_LEVEL_INFO)
+      field_found = get_model_field( self%field_meta_data%get_variable_name(ivar), &
+                                     prognostic_fields, lfric_field_ptr )
+    end if
+    if (.not. field_found) then
+      call log_event("State not found in prog. Looking in diag.", LOG_LEVEL_INFO)
+      field_found = get_model_field( self%field_meta_data%get_variable_name(ivar), &
+                                     diagnostic_fields, lfric_field_ptr )
+    end if
+
+    if (.not. field_found) then
+      write ( log_scratch_space, '(3A)' ) &
+        "State cannot find the field '", trim(variable_name), &
+        "' in the NL modeldb. Attmepting to calculate via diagnostics."
+      call log_event(log_scratch_space, LOG_LEVEL_INFO)
+
+      ! Try to create from diagnostic.
+      if (allocated(diagnostic_field)) then
+        deallocate(diagnostic_field)
+      end if
+      allocate(diagnostic_field)
+      call get_jedi_diagnostic(self%field_meta_data%get_variable_name(ivar), &
+                               diagnostic_field, &
+                               self%modeldb)
+    end if
 
     atlas_data_ptr => self%fields(ivar)%get_data()
 
-    call self%fields_to_modeldb(ivar)%initialise( atlas_data_ptr,     &
-                                                  horizontal_map_ptr, &
-                                                  lfric_field_ptr )
-
+    ! Copy data to Atlas.
+    if (allocated(field_interface)) then
+      deallocate(field_interface)
+    end if
+    allocate(field_interface)
+    call field_interface%initialise( atlas_data_ptr,     &
+                                     horizontal_map_ptr, &
+                                     lfric_field_ptr )
+    call field_interface%copy_from_lfric()
   end do
 
-end subroutine setup_interface_to_modeldb
-
-!> @brief    Copy from modeldb to the Atlas field emulators
-!>
-subroutine from_modeldb( self )
-
-  implicit none
-
-  class( jedi_state_type ), intent(inout) :: self
-
-  ! Local
-  integer(i_def) :: ivar
-
-  !> @todo Will need some sort of transform for winds and
-  !>       possibly other higher order elements.
-  !>
-  !>       call transform_winds(...)
-
-  ! copy to the Atlas emulator fields
-  do ivar = 1, size(self%fields_to_modeldb)
-    call self%fields_to_modeldb(ivar)%copy_from_lfric()
-  end do
-
-end subroutine from_modeldb
+end subroutine read_from_nl
 
 !> @brief    Setup Atlas-LFRic interface_fields that enables copying
 !>           between Atlas field emulators and the LFRic fields in
@@ -464,6 +465,7 @@ subroutine setup_interface_to_field_collection( self,             &
   integer(i_def),   pointer :: horizontal_map_ptr(:)
   integer(i_def)            :: n_variables
   logical                   :: all_variables_exists
+  logical                   :: has_field
 
   ! Check that the state contains all the required fields
   all_variables_exists = &
@@ -480,8 +482,11 @@ subroutine setup_interface_to_field_collection( self,             &
   do ivar = 1, n_variables
 
     ! Get the required data and setup field interface
-    call get_model_field( variable_names(ivar), &
-                          field_collection, lfric_field_ptr )
+    has_field = get_model_field( variable_names(ivar), &
+                                 field_collection, lfric_field_ptr )
+    if (.not. has_field) then
+      call log_event("State cannot find field.", LOG_LEVEL_ERROR)
+    end if
     call self%get_field_data(variable_names(ivar), atlas_data_ptr)
     call interface_fields(ivar)%initialise( atlas_data_ptr,     &
                                             horizontal_map_ptr, &
@@ -674,7 +679,6 @@ subroutine jedi_state_destructor( self )
 
   self%geometry => null()
   if ( allocated(self%fields ) ) deallocate(self%fields )
-  if ( allocated( self%fields_to_modeldb ) ) deallocate( self%fields_to_modeldb )
   if (self%has_a_modeldb) then
     call finalise_modeldb( self%modeldb )
     self%has_a_modeldb = .false.

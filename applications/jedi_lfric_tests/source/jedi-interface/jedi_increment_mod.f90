@@ -485,6 +485,7 @@ subroutine setup_interface_to_field_collection( self, &
   integer( kind=i_def ), pointer :: horizontal_map_ptr(:)
   integer( kind=i_def )          :: n_variables
   logical( kind=l_def )          :: all_variables_exists
+  logical( kind=l_def )          :: has_field
 
   ! Check that the increment conatins all the required fields
   all_variables_exists = self%field_meta_data%check_variables_exist(variable_names)
@@ -499,8 +500,11 @@ subroutine setup_interface_to_field_collection( self, &
   do ivar = 1, n_variables
     ! Get the required data
     !! field_meta_data and field_collection
-    call get_model_field( variable_names(ivar), &
-                          field_collection, lfric_field_ptr )
+    has_field = get_model_field( variable_names(ivar), &
+                                 field_collection, lfric_field_ptr )
+    if (.not. has_field) then
+      call log_event("Increment cannot find field.", LOG_LEVEL_ERROR)
+    end if
     call self%get_field_data(variable_names(ivar), atlas_data_ptr)
     call atlas_lfric_interface_fields(ivar)%initialise( atlas_data_ptr,     &
                                                         horizontal_map_ptr, &

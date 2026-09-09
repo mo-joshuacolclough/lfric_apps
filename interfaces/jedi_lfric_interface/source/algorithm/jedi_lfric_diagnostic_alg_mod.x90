@@ -1,0 +1,84 @@
+!-----------------------------------------------------------------------------
+! (C) Crown copyright 2026 Met Office. All rights reserved.
+! The file LICENCE, distributed with this code, contains details of the terms
+! under which the code may be used.
+!-----------------------------------------------------------------------------
+!> @brief Algorithms to do field processing to produce diagnostics for JEDI.
+module jedi_lfric_diagnostic_alg_mod
+
+  use constants_mod,                 only: i_def, r_def, l_def
+  use driver_modeldb_mod,            only: modeldb_type
+  use fs_continuity_mod,             only: W3, Wtheta
+  use field_mod,                     only: field_type
+  use field_collection_mod,          only: field_collection_type
+  use log_mod,                       only: log_event,         &
+                                           log_scratch_space, &
+                                           LOG_LEVEL_INFO,    &
+                                           LOG_LEVEL_ERROR
+  use initialise_diagnostics_mod,    only: init_diag => init_diagnostic_field
+
+  implicit none
+
+  private
+  public :: pressure
+
+contains
+! -------------------------------------------------------------------------------------------------
+
+subroutine pressure(modeldb, fspace_enum, pr)
+  use planet_config_mod, only: p_zero, one_over_kappa
+
+  implicit none
+
+  type(modeldb_type),    intent(in)    :: modeldb
+  integer(kind=i_def), intent(in) :: fspace_enum
+  type(field_type), intent(out)   :: pr
+
+  logical(kind=l_def) :: pressure_flag
+  type(field_type), pointer :: exner_ptr
+  type(field_collection_type), pointer :: depository
+
+  nullify(exner_ptr, depository)
+
+  ! For fetching prerequisite fields.
+  depository => modeldb%fields%get_field_collection("depository")
+
+  select case (fspace_enum)
+    case (W3)
+      pressure_flag = init_diag(pr, 'processed__pressure_in_w3')
+      field_found = get_model_field("exner", depository, exner_ptr)
+      if ( .not. field_found ) then
+        call log_event("jedi_lfric_diagnostic_utils_mod::pressure: &
+                       &Pre-requisite field 'exner' not found.", &
+                       LOG_LEVEL_ERROR)
+      end if
+
+    case (Wtheta)
+      pressure_flag = init_diag(pr, 'processed__pressure_in_wth')
+      field_found = get_model_field("exner_in_wth", depository, exner_ptr)
+      if ( .not. field_found ) then
+        call log_event("jedi_lfric_diagnostic_utils_mod::pressure: &
+                       &Pre-requisite field 'exner_in_wth' not found.", &
+                       LOG_LEVEL_ERROR)
+      end if
+
+    case default
+      call log_event("jedi_lfric_diagnostic_utils_mod::pressure: Unexpected function space. &
+                     &Only coded for W3 and Wtheta.", &
+                     LOG_LEVEL_ERROR)
+  end select
+
+  if ( .not. presure_flag ) then
+    call log_event("Pressure flag was false. Not sure what this means TODO.", &
+                   LOG_LEVEL_ERROR)   !TODO!
+  end if
+
+  ! From diagnostic_alg_mod.
+  call invoke(name = "pressure",
+              setval_X(pr, exner), &
+              inc_X_powreal_a(pr, one_over_kappa), &
+              inc_a_times_X(p_zero, pr))
+
+end subroutine pressure
+
+end module jedi_lfric_diagnostic_alg_mod

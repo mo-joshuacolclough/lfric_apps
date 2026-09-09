@@ -20,6 +20,7 @@ module jedi_lfric_utils_mod
   use fs_continuity_mod,              only : W3, Wtheta, name_from_functionspace
   use log_mod,                        only : log_event,       &
                                              LOG_LEVEL_ERROR, &
+                                             LOG_LEVEL_WARNING, &
                                              LOG_LEVEL_TRACE, &
                                              log_scratch_space
   use mesh_mod,                       only : mesh_type
@@ -37,7 +38,7 @@ module jedi_lfric_utils_mod
   !> @param[in]    field_name       the name of the field to return
   !> @param[inout] field_collection field_collection to get field from
   !> @param[inout] field_ptr        pointer to the field requested
-  subroutine get_model_field( field_name, field_collection, field_ptr )
+  function get_model_field( field_name, field_collection, field_ptr ) result(field_exists)
 
     implicit none
 
@@ -50,10 +51,11 @@ module jedi_lfric_utils_mod
     call log_event( 'lfric_da: get_model_field - start', LOG_LEVEL_TRACE )
 
     field_exists = field_collection % field_exists(field_name)
-    if ( .not.field_exists ) then
+    if ( .not. field_exists ) then
       write(log_scratch_space, '(3A)') "lfric_da: the requested field: ", &
                                        trim(field_name), ", is not available"
-      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+      call log_event( log_scratch_space, LOG_LEVEL_WARNING )
+      return
     end if
 
     ! get a pointer to the field
@@ -61,7 +63,34 @@ module jedi_lfric_utils_mod
 
     call log_event( 'lfric_da: get_model_field - end', LOG_LEVEL_TRACE )
 
-  end subroutine get_model_field
+  end function get_model_field
+
+  ! -------------------------------------------------------------------------------------------------
+  !TODO! Blurb
+  subroutine get_jedi_diagnostic(varname, diagnostic_field, modeldb)
+    use jedi_lfric_diagnostic_alg_mod, only: pressure
+
+    implicit none
+
+    character(len=*),   intent(in)    :: varname
+    type(field_type),   intent(out)   :: diagnostic_field
+    type(modeldb_type), intent(in)    :: modeldb  ! TODO -> Add diagnostic field to collection here...
+
+    select case ( varname )
+      case ( "pressure_in_wth" )
+        call pressure(modeldb, Wtheta, diagnostic_field)
+
+      case default
+        write ( log_scratch_space, '(4A)' )                          &
+                "jedi_lfric_diagnostic_utils_mod::get_jedi_diagnostic:: ", &
+                "The diagnostic variable name: '",                         &
+                trim(varname),                                 &
+                "' is not yet supported."
+        call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+    end select
+
+  end subroutine get_jedi_diagnostic
+  ! -------------------------------------------------------------------------------------------------
 
   !> @brief  Create and add a real-valued field to a field collection
   !>
