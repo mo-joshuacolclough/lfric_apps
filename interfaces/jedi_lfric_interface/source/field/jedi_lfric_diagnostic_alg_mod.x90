@@ -1,9 +1,10 @@
 !-----------------------------------------------------------------------------
-! (C) Crown copyright 2026 Met Office. All rights reserved.
+! (C) Crown copyright Met Office. All rights reserved.
 ! The file LICENCE, distributed with this code, contains details of the terms
 ! under which the code may be used.
 !-----------------------------------------------------------------------------
 !> @brief Algorithms to do field processing to produce diagnostics for JEDI.
+
 module jedi_lfric_diagnostic_alg_mod
 
   use constants_mod,                 only: i_def, r_def, l_def
@@ -35,6 +36,7 @@ subroutine pressure(modeldb, fspace_enum, pr)
   type(field_type), intent(out)   :: pr
 
   logical(kind=l_def) :: pressure_flag
+  logical(kind=l_def) :: field_found
   type(field_type), pointer :: exner_ptr
   type(field_collection_type), pointer :: depository
 
