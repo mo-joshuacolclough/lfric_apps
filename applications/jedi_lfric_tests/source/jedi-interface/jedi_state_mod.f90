@@ -357,9 +357,9 @@ end subroutine write_file
 !>
 subroutine read_from_nl( self )
 
-  use jedi_lfric_utils_mod,  only: get_model_field, &
-                                   get_jedi_diagnostic
-  use field_mod,             only: field_type
+  use jedi_lfric_utils_mod,          only: get_model_field
+  use jedi_lfric_diagnostic_alg_mod, only: get_jedi_diagnostic
+  use field_mod,                     only: field_type
 
   implicit none
 
@@ -407,7 +407,7 @@ subroutine read_from_nl( self )
 
     if (.not. field_found) then
       write ( log_scratch_space, '(3A)' ) &
-        "State cannot find the field '", trim(variable_name), &
+        "State cannot find the field '", trim(self%field_meta_data%get_variable_name(ivar)), &
         "' in the NL modeldb. Attmepting to calculate via diagnostics."
       call log_event(log_scratch_space, LOG_LEVEL_INFO)
 

@@ -17,27 +17,30 @@ module jedi_lfric_diagnostic_alg_mod
                                            LOG_LEVEL_INFO,    &
                                            LOG_LEVEL_ERROR
   use initialise_diagnostics_mod,    only: init_diag => init_diagnostic_field
+  use jedi_lfric_utils_mod,          only: get_model_field
 
   implicit none
 
   private
-  public :: pressure
+  private :: pressure
+  public :: get_jedi_diagnostic
 
 contains
 ! -------------------------------------------------------------------------------------------------
 
 subroutine pressure(modeldb, fspace_enum, pr)
+
   use planet_config_mod, only: p_zero, one_over_kappa
 
   implicit none
 
-  type(modeldb_type),    intent(in)    :: modeldb
-  integer(kind=i_def), intent(in) :: fspace_enum
-  type(field_type), intent(out)   :: pr
+  type(modeldb_type),  intent(in)  :: modeldb
+  integer(kind=i_def), intent(in)  :: fspace_enum
+  type(field_type),    intent(out) :: pr
 
-  logical(kind=l_def) :: pressure_flag
-  logical(kind=l_def) :: field_found
-  type(field_type), pointer :: exner_ptr
+  logical(kind=l_def)                  :: pressure_flag
+  logical(kind=l_def)                  :: field_found
+  type(field_type), pointer            :: exner_ptr
   type(field_collection_type), pointer :: depository
 
   nullify(exner_ptr, depository)
@@ -45,6 +48,7 @@ subroutine pressure(modeldb, fspace_enum, pr)
   ! For fetching prerequisite fields.
   depository => modeldb%fields%get_field_collection("depository")
 
+  pressure_flag = .false.
   select case (fspace_enum)
     case (W3)
       pressure_flag = init_diag(pr, 'processed__pressure_in_w3')
@@ -70,17 +74,45 @@ subroutine pressure(modeldb, fspace_enum, pr)
                      LOG_LEVEL_ERROR)
   end select
 
-  if ( .not. presure_flag ) then
+  if ( .not. pressure_flag ) then
     call log_event("Pressure flag was false. Not sure what this means TODO.", &
                    LOG_LEVEL_ERROR)   !TODO!
   end if
 
   ! From diagnostic_alg_mod.
-  call invoke(name = "pressure",
-              setval_X(pr, exner), &
-              inc_X_powreal_a(pr, one_over_kappa), &
-              inc_a_times_X(p_zero, pr))
+  call invoke( name = "pressure",                   &
+               setval_X(pr, exner_ptr),                 &
+               inc_X_powreal_a(pr, one_over_kappa), &
+               inc_a_times_X(p_zero, pr) )
 
 end subroutine pressure
+
+! -------------------------------------------------------------------------------------------------
+
+!TODO! Blurb
+subroutine get_jedi_diagnostic(varname, diagnostic_field, modeldb)
+
+  implicit none
+
+  character(len=*),   intent(in)    :: varname
+  type(field_type),   intent(out)   :: diagnostic_field
+  type(modeldb_type), intent(in)    :: modeldb  ! TODO -> Add diagnostic field to collection here...
+
+  select case ( varname )
+    case ( "pressure_in_wth" )
+      call pressure(modeldb, Wtheta, diagnostic_field)
+
+    case default
+      write ( log_scratch_space, '(4A)' )                          &
+              "jedi_lfric_diagnostic_utils_mod::get_jedi_diagnostic:: ", &
+              "The diagnostic variable name: '",                         &
+              trim(varname),                                 &
+              "' is not yet supported."
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+  end select
+
+end subroutine get_jedi_diagnostic
+
+! -------------------------------------------------------------------------------------------------
 
 end module jedi_lfric_diagnostic_alg_mod

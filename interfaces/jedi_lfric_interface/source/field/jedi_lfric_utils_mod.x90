@@ -66,31 +66,6 @@ module jedi_lfric_utils_mod
   end function get_model_field
 
   ! -------------------------------------------------------------------------------------------------
-  !TODO! Blurb
-  subroutine get_jedi_diagnostic(varname, diagnostic_field, modeldb)
-    use jedi_lfric_diagnostic_alg_mod, only: pressure
-
-    implicit none
-
-    character(len=*),   intent(in)    :: varname
-    type(field_type),   intent(out)   :: diagnostic_field
-    type(modeldb_type), intent(in)    :: modeldb  ! TODO -> Add diagnostic field to collection here...
-
-    select case ( varname )
-      case ( "pressure_in_wth" )
-        call pressure(modeldb, Wtheta, diagnostic_field)
-
-      case default
-        write ( log_scratch_space, '(4A)' )                          &
-                "jedi_lfric_diagnostic_utils_mod::get_jedi_diagnostic:: ", &
-                "The diagnostic variable name: '",                         &
-                trim(varname),                                 &
-                "' is not yet supported."
-        call log_event( log_scratch_space, LOG_LEVEL_ERROR )
-    end select
-
-  end subroutine get_jedi_diagnostic
-  ! -------------------------------------------------------------------------------------------------
 
   !> @brief  Create and add a real-valued field to a field collection
   !>

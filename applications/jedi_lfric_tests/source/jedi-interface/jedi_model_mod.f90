@@ -106,7 +106,7 @@ subroutine model_step(self, state)
   call step_nl( state%modeldb )
 
   ! Copy fields from model data
-  call state%from_modeldb()
+  call state%read_from_nl()
 
   ! update the state time
   call state%update_time( self%time_step )
