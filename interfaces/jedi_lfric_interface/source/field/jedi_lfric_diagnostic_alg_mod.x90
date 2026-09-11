@@ -81,7 +81,7 @@ subroutine pressure(modeldb, fspace_enum, pr)
 
   ! From diagnostic_alg_mod.
   call invoke( name = "pressure",                   &
-               setval_X(pr, exner_ptr),                 &
+               setval_X(pr, exner_ptr),             &
                inc_X_powreal_a(pr, one_over_kappa), &
                inc_a_times_X(p_zero, pr) )
 

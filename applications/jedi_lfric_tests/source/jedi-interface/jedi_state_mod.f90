@@ -366,12 +366,12 @@ subroutine read_from_nl( self )
   class( jedi_state_type ), intent(inout) :: self
 
   ! Local
-  integer(i_def)                :: ivar
-  type(field_type), pointer     :: lfric_field_ptr
-  type(field_type), allocatable :: diagnostic_field
-  real(real64),     pointer     :: atlas_data_ptr(:,:)
-  integer(i_def),   pointer     :: horizontal_map_ptr(:)
-  integer(i_def)                :: n_variables
+  integer(i_def)                        :: ivar
+  type(field_type), pointer             :: lfric_field_ptr
+  type(field_type), allocatable, target :: diagnostic_field
+  real(real64),     pointer             :: atlas_data_ptr(:,:)
+  integer(i_def),   pointer             :: horizontal_map_ptr(:)
+  integer(i_def)                        :: n_variables
 
   type( atlas_field_interface_type ), allocatable :: field_interface
 
@@ -419,6 +419,13 @@ subroutine read_from_nl( self )
       call get_jedi_diagnostic(self%field_meta_data%get_variable_name(ivar), &
                                diagnostic_field, &
                                self%modeldb)
+      
+      lfric_field_ptr => diagnostic_field
+
+      write ( log_scratch_space, '(3A)' ) &
+        "Calculated diagnostic field '", trim(self%field_meta_data%get_variable_name(ivar)), &
+        "'."
+      call log_event(log_scratch_space, LOG_LEVEL_INFO)
     end if
 
     atlas_data_ptr => self%fields(ivar)%get_data()
