@@ -101,6 +101,8 @@ subroutine get_jedi_diagnostic(varname, diagnostic_field, modeldb)
   select case ( varname )
     case ( "pressure_in_wth" )
       call pressure(modeldb, Wtheta, diagnostic_field)
+    case ( "pressure_in_w3" )
+      call pressure(modeldb, W3, diagnostic_field)
 
     case default
       write ( log_scratch_space, '(4A)' )                          &

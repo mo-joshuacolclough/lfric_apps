@@ -123,6 +123,12 @@ module jedi_setup_field_meta_data_mod
       case ( "m_s" )
         function_space = Wtheta
         is_2d = .false.
+      case ( "frozen_fraction" )
+        function_space = Wtheta
+        is_2d = .false.
+      case ( "liquid_fraction" )
+        function_space = Wtheta
+        is_2d = .false.
       case ( "u10m" )
         function_space = W3
         is_2d = .true.
@@ -133,12 +139,6 @@ module jedi_setup_field_meta_data_mod
         function_space = W3
         is_2d = .true.
       case ( "sea_ice_fraction" )
-        function_space = W3
-        is_2d = .true.
-      case ( "frozen_fraction" )
-        function_space = W3
-        is_2d = .true.
-      case ( "liquid_fraction" )
         function_space = W3
         is_2d = .true.
       case ( "ustar" )
