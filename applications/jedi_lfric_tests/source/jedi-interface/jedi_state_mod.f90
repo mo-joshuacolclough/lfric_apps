@@ -419,12 +419,11 @@ subroutine read_from_nl( self )
       call get_jedi_diagnostic(self%field_meta_data%get_variable_name(ivar), &
                                diagnostic_field, &
                                self%modeldb)
-      
       lfric_field_ptr => diagnostic_field
-
+      
       write ( log_scratch_space, '(3A)' ) &
-        "Calculated diagnostic field '", trim(self%field_meta_data%get_variable_name(ivar)), &
-        "'."
+        "Calculated field '", trim(self%field_meta_data%get_variable_name(ivar)), &
+        "' as a diagnostic."
       call log_event(log_scratch_space, LOG_LEVEL_INFO)
     end if
 
@@ -482,6 +481,12 @@ subroutine setup_interface_to_field_collection( self,             &
         'The Atlas state does not conatin all the required fields.'
     call log_event( log_scratch_space, LOG_LEVEL_ERROR )
   endif
+
+  ! Link the Atlas emulator fields with lfric fields
+  call self%geometry%get_horizontal_map( horizontal_map_ptr )
+    log_scratch_space = &
+        'The Atlas state does not conatin all the required fields.'
+    call log_event( log_scratch_space, LOG_LEVEL_ERROR )
 
   ! Link the Atlas emulator fields with lfric fields
   call self%geometry%get_horizontal_map( horizontal_map_ptr )
@@ -698,13 +703,6 @@ end subroutine jedi_state_destructor
 !>
 subroutine print( self )
 
-  implicit none
-
-  class( jedi_state_type ), target, intent(inout) :: self
-
-  ! Local
-  integer(i_def)                            :: ivar
-  type (atlas_field_emulator_type), pointer :: atlas_field_ptr
 
   ! Printing data
   call log_event( "State print ----", LOG_LEVEL_INFO )
