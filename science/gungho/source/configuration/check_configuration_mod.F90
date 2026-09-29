@@ -6,7 +6,9 @@
 
 module check_configuration_mod
 
-  use constants_mod,        only: i_def, l_def, str_def
+  use config_mod,    only: config_type
+  use constants_mod, only: i_def, l_def, str_def
+
   use mixing_config_mod,    only: viscosity,                                   &
                                   viscosity_mu
   use transport_config_mod, only: operators,                                   &
@@ -49,7 +51,8 @@ module check_configuration_mod
                                   substep_transport_off,                       &
                                   adjust_vhv_wind,                             &
                                   ffsl_unity_3d,                               &
-                                  wind_mono_top
+                                  wind_mono_top,                               &
+                                  native_w2_wind_transport
   use transport_enumerated_types_mod,                                          &
                             only: scheme_mol_3d,                               &
                                   scheme_ffsl_3d,                              &
@@ -71,9 +74,6 @@ module check_configuration_mod
                                   monotone_qm_pos,                             &
                                   ffsl_splitting_swift, &
                                   ffsl_splitting_cosmic
-  use namelist_collection_mod,                                                 &
-                            only : namelist_collection_type
-  use namelist_mod,         only : namelist_type
 
   implicit none
 
@@ -503,11 +503,14 @@ contains
             call log_event(                                                    &
               '3D unity transport can only be used when all variables '        &
               // 'are transported with the same splitting', LOG_LEVEL_ERROR)
-          else if ( vertical_method(i) /= split_method_ffsl                    &
-                    .or. horizontal_method(i) /= split_method_ffsl ) then
+          else if ( (vertical_method(i) == split_method_ffsl                   &
+                    .and. horizontal_method(i) /= split_method_ffsl) .or.      &
+                    (vertical_method(i) /= split_method_ffsl                   &
+                    .and. horizontal_method(i) == split_method_ffsl) ) then
             call log_event(                                                    &
-              '3D unity transport can only be used when all variables '        &
-              // 'are using FFSL for vertical and horizontal transport', LOG_LEVEL_ERROR)
+              '3D unity transport can only be used when variables using FFSL'  &
+              // 'are using FFSL for both vertical and horizontal transport',  &
+              LOG_LEVEL_ERROR)
           end if
         end if
 
@@ -610,6 +613,23 @@ contains
         end if
       end if
 
+      if ( native_w2_wind_transport ) then
+        if ( geometry == geometry_spherical .and. topology == topology_fully_periodic ) then
+          write( log_scratch_space, '(A)' ) 'Native wind transport on global spherical domains is not supported'
+          call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+        end if
+        do i = 1, profile_size
+          if ( field_names(i) == "wind" ) then
+            if ( ( horizontal_method(i) /= split_method_sl  .or. &
+                   vertical_method(i) /= split_method_sl ) ) then
+              write( log_scratch_space, '(A)' ) 'Native wind transport requires SL scheme for the winds'
+              call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+            end if
+            exit
+          end if
+        end do
+      end if
+
       call log_event( '...Check gungho config done', LOG_LEVEL_INFO )
 
   end subroutine check_configuration
@@ -622,16 +642,15 @@ contains
   !>          returns required stencil depth that needs to be supported.
   !> @param[in,out] stencil_depths    Array of stencil depths for each base mesh
   !> @param[in]     base_mesh_names   Array of base mesh names
-  !> @param[in]     configuration     The configuration object
+  !> @param[in]     config            The configuration object
   !===========================================================================
-  subroutine get_required_stencil_depth(stencil_depths, base_mesh_names, configuration)
+  subroutine get_required_stencil_depth(stencil_depths, base_mesh_names, config)
 
     implicit none
 
-    integer(kind=i_def),            intent(inout) :: stencil_depths(:)
-    character(len=str_def),         intent(in)    :: base_mesh_names(:)
-    type(namelist_collection_type), intent(in)    :: configuration
-
+    integer(kind=i_def),    intent(inout) :: stencil_depths(:)
+    character(len=str_def), intent(in)    :: base_mesh_names(:)
+    type(config_type),      intent(in)    :: config
 
     integer(kind=i_def) :: i
     integer(kind=i_def) :: transport_depth, sl_depth
@@ -639,43 +658,35 @@ contains
     logical(kind=l_def) :: any_horz_dep_pts
 
     ! Configuration variables
-    type(namelist_type), pointer :: base_mesh_nml
-    type(namelist_type), pointer :: formulation_nml
-    type(namelist_type), pointer :: multires_coupling_nml
-    type(namelist_type), pointer :: transport_nml
-    character(len=str_def)       :: prime_mesh_name
-    character(len=str_def)       :: aerosol_mesh_name
-    logical(kind=l_def)          :: use_multires_coupling
-    logical(kind=l_def)          :: coarse_aerosol_transport
-    integer(kind=i_def)          :: operators
-    integer(kind=i_def)          :: fv_horizontal_order
-    integer(kind=i_def)          :: panel_edge_treatment
-    logical(kind=l_def)          :: panel_edge_high_order
-    integer(kind=i_def)          :: dep_pt_stencil_extent
-    integer(kind=i_def)          :: ffsl_inner_order
-    integer(kind=i_def)          :: ffsl_outer_order
+    character(len=str_def) :: prime_mesh_name
+    character(len=str_def) :: aerosol_mesh_name
+    logical(kind=l_def)    :: use_multires_coupling
+    logical(kind=l_def)    :: coarse_aerosol_transport
+    integer(kind=i_def)    :: operators
+    integer(kind=i_def)    :: fv_horizontal_order
+    integer(kind=i_def)    :: panel_edge_treatment
+    logical(kind=l_def)    :: panel_edge_high_order
+    integer(kind=i_def)    :: dep_pt_stencil_extent
+    integer(kind=i_def)    :: ffsl_inner_order
+    integer(kind=i_def)    :: ffsl_outer_order
 
     ! ------------------------------------------------------------------------ !
     ! Get configuration variables
     ! ------------------------------------------------------------------------ !
+    prime_mesh_name = config%base_mesh%prime_mesh_name()
 
-    base_mesh_nml => configuration%get_namelist('base_mesh')
-    formulation_nml => configuration%get_namelist('formulation')
-    transport_nml => configuration%get_namelist('transport')
+    operators             = config%transport%operators()
+    fv_horizontal_order   = config%transport%fv_horizontal_order()
+    panel_edge_treatment  = config%transport%panel_edge_treatment()
+    panel_edge_high_order = config%transport%panel_edge_high_order()
+    dep_pt_stencil_extent = config%transport%dep_pt_stencil_extent()
+    ffsl_inner_order      = config%transport%ffsl_inner_order()
+    ffsl_outer_order      = config%transport%ffsl_outer_order()
 
-    call base_mesh_nml%get_value('prime_mesh_name', prime_mesh_name)
-    call formulation_nml%get_value('use_multires_coupling', use_multires_coupling)
-    call transport_nml%get_value('operators', operators)
-    call transport_nml%get_value('fv_horizontal_order', fv_horizontal_order)
-    call transport_nml%get_value('panel_edge_treatment', panel_edge_treatment)
-    call transport_nml%get_value('panel_edge_high_order', panel_edge_high_order)
-    call transport_nml%get_value('dep_pt_stencil_extent', dep_pt_stencil_extent)
-    call transport_nml%get_value('ffsl_inner_order', ffsl_inner_order)
-    call transport_nml%get_value('ffsl_outer_order', ffsl_outer_order)
+    use_multires_coupling = config%formulation%use_multires_coupling()
     if (use_multires_coupling) then
-      multires_coupling_nml => configuration%get_namelist('multires_coupling')
-      call multires_coupling_nml%get_value('aerosol_mesh_name', aerosol_mesh_name)
-      call multires_coupling_nml%get_value('coarse_aerosol_transport', coarse_aerosol_transport)
+      aerosol_mesh_name        = config%multires_coupling%aerosol_mesh_name()
+      coarse_aerosol_transport = config%multires_coupling%coarse_aerosol_transport()
     end if
 
     ! ------------------------------------------------------------------------ !
