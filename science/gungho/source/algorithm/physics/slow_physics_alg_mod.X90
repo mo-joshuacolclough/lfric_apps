@@ -91,7 +91,8 @@ module slow_physics_alg_mod
                                        moisture_formulation_dry, &
                                        theta_moist_source
   use io_config_mod,             only: write_conservation_diag, write_diag, &
-                                       use_xios_io
+                                       use_xios_io, &
+                                       save_to_depository
   use timing_mod,                only: start_timing, stop_timing, tik, LPROF
   use external_forcing_alg_mod,  only: external_forcing_alg
   use evap_condense_kernel_mod,  only: evap_condense_kernel_type
@@ -880,7 +881,7 @@ contains
                          aerosol_fields, recip_l_mo_sea, rhostar,            &
                          t1_sd_2d, q1_sd_2d)
 
-      call bl_exp_alg(modeldb%config,                                     &
+      call bl_exp_alg(modeldb,                                            &
                       theta, rho, exner, mr_n,                            &
                       derived_fields, radiation_fields,                   &
                       microphysics_fields, dmr_mphys, orography_fields,   &
