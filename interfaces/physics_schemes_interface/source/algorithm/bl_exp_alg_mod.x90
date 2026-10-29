@@ -469,10 +469,14 @@ contains
 
     if ( LPROF ) call stop_timing( id, 'bl.explicit' )
 
+    ! -- Diagnostics
+    ! Check if a diagnostics collection is available to populate.
+    ! If so, copy fields to the diagnostics collection.
+    call save_diags_for_bl_exp(modeldb, oblen)
+
     ! output BL diagnostics
     if (write_diag .and. use_xios_io) then
-
-      call output_diags_for_bl_exp(modeldb, ntml, cumulus,                   &
+      call output_diags_for_bl_exp(ntml, cumulus,                            &
                                    bl_type_ind, wvar, dsldzm, mix_len_bm,    &
                                    gradrinr, rhokh_bl, tke_bl, dtrdz_tq_bl,  &
                                    rdz_w3, zhsc, level_ent, level_ent_dsc,   &
@@ -480,7 +484,6 @@ contains
                                    ent_we_lim_dsc, ent_t_frac_dsc,           &
                                    ent_zrzi_dsc, zht, oblen,                 &
                                    bl_weight_1dbl)
-
     end if
 
     nullify( mesh )

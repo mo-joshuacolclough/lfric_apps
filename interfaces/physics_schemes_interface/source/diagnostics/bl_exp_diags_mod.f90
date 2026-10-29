@@ -1,5 +1,5 @@
 !-------------------------------------------------------------------------------
-! (c) Crown copyright 2023 Met Office. All rights reserved.
+! (c) Crown copyright 2023-2026 Met Office. All rights reserved.
 ! The file LICENCE, distributed with this code, contains details of the terms
 ! under which the code may be used.
 !-------------------------------------------------------------------------------
@@ -7,11 +7,14 @@
 
 module bl_exp_diags_mod
 
-  use constants_mod,       only: l_def
-  use field_mod,           only: field_type
-  use integer_field_mod,   only: integer_field_type
-  use timing_mod,          only: start_timing, stop_timing, tik, LPROF
-  use initialise_diagnostics_mod,     only : init_diag => init_diagnostic_field
+  use constants_mod,                 only: l_def, str_def
+  use field_mod,                     only: field_type
+  use field_parent_mod,              only: field_parent_type
+  use field_collection_mod,          only: field_collection_type
+  use field_collection_iterator_mod, only: field_collection_iterator_type
+  use integer_field_mod,             only: integer_field_type
+  use timing_mod,                    only: start_timing, stop_timing, tik, LPROF
+  use initialise_diagnostics_mod,    only: init_diag => init_diagnostic_field
 
   implicit none
 
@@ -20,8 +23,10 @@ module bl_exp_diags_mod
   ! Logical indicating whether diagnostics are requested
   logical( l_def ) :: zht_flag, oblen_flag
 
-  public :: initialise_diags_for_bl_exp
-  public :: output_diags_for_bl_exp
+  public  :: initialise_diags_for_bl_exp
+  public  :: output_diags_for_bl_exp
+  private :: overwrite_field_if_available
+  public  :: save_diags_for_bl_exp
 
 contains
 
@@ -46,7 +51,6 @@ contains
   end subroutine initialise_diags_for_bl_exp
 
   !> @brief Output diagnostics from bl_exp_alg
-  !> @param[in] depository_flag   Output the fields to the field depository instead
   !> @param[in] ntml              Number of turbulently mixed levels
   !> @param[in] cumulus           Cumulus flag (true/false)
   !> @param[in] bl_type_ind       Diagnosed BL types
@@ -70,8 +74,8 @@ contains
   !> @param[in] zht               Turbulent mixing height
   !> @param[in] oblen             Obukhov length
   !> @param[in] bl_weight_1dbl    Blending weight to 1D BL scheme in the BL
-  subroutine output_diags_for_bl_exp(modeldb, ntml, cumulus,  &
-                                     bl_type_ind, wvar, dsldzm, mix_len_bm,    &
+  subroutine output_diags_for_bl_exp(ntml, cumulus, bl_type_ind,               &
+                                     wvar, dsldzm, mix_len_bm,                 &
                                      gradrinr, rhokh_bl, tke_bl, dtrdz_tq_bl,  &
                                      rdz_tq_bl, zhsc, level_ent, level_ent_dsc,&
                                      ent_we_lim, ent_t_frac, ent_zrzi,         &
@@ -92,7 +96,6 @@ contains
     type(integer_field_type), intent(in) :: level_ent, level_ent_dsc, ntml,    &
                                             cumulus, bl_type_ind
     integer( tik )  :: id
-    logical(kind=l_def), intent(in)   :: depository_flag
 
     if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
 
@@ -126,4 +129,67 @@ contains
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
 
   end subroutine output_diags_for_bl_exp
+
+  !> @brief Overwrite fields in a field collection only if they are available.
+  !> @param[inout] collection          Field collection to search and overwrite.
+  !> @param[in]    name                Name of the field.
+  !> @param[in]    field_to_copy       New field to replace the existing field.
+  subroutine overwrite_field_if_available(collection, name, field_to_copy)
+
+    implicit none
+
+    type( field_collection_type ), intent(inout) :: collection
+    character( len=* ),            intent(in)    :: name
+    type( field_type ),            intent(in)    :: field_to_copy
+
+    ! local
+    type( field_type ), allocatable :: new_field
+
+    if (collection%field_exists(name)) then
+      call collection%remove_field(name)
+      allocate(new_field)
+      call field_to_copy%copy_field_serial(new_field)
+      call collection%add_field(new_field)
+    end if
+
+  end subroutine overwrite_field_if_available
+
+  !> @brief Save diagnostics to a modeldb.
+  !> @param[inout] modeldb             ModelDB containing the model fields.
+  !> @param[in]    oblen               Obukhov length
+  subroutine save_diags_for_bl_exp(modeldb, oblen)
+
+    implicit none
+
+    ! Prognostic fields to output
+    type( modeldb_type ), intent(inout) :: modeldb
+    type( field_type ),   intent(in)    :: oblen
+
+    ! Local vars
+    integer( tik )  :: id
+
+    type( field_collection_type ), pointer :: diagnostic_collection
+    character(len=str_def)                 :: field_name
+
+    if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
+
+    nullify(diagnostic_collection, field_ptr)
+
+    ! Exit early if diagnostics saving has not been requested.
+    ! (i.e, there is no available field collection)
+    if (.not. modeldb%fields%field_collection_exists("diagnostics")) then
+      return
+    end if
+
+    diagnostic_collection => modeldb%fields%get_field_collection("diagnostics")
+
+    ! Go through available diagnostics and overwrite those that are available.
+    if (diagnostic_collection%field_exists("oblen")) then
+      call overwrite_field_if_available(diagnostic_collection, "oblen", oblen)
+    end if
+
+    ! TODO: More variables here.
+
+    if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
+  end subroutine save_diags_for_bl_exp
 end module bl_exp_diags_mod
