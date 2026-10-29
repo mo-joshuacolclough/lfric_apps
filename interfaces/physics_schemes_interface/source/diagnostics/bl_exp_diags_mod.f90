@@ -96,37 +96,32 @@ contains
 
     if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
 
-    ! FROM CONFIG
-    if (depository_flag) then
-      
-    else
-      ! Prognostic fields from turbulence collection
-      call ntml%write_field('turbulence__ntml')
-      call cumulus%write_field('turbulence__cumulus')
-      call bl_type_ind%write_field('turbulence__bl_type_ind')
-      call wvar%write_field('turbulence__wvar')
-      call dsldzm%write_field('turbulence__dsldzm')
-      call mix_len_bm%write_field('turbulence__mix_len_bm')
-      call gradrinr%write_field('turbulence__gradrinr')
-      call rhokh_bl%write_field('turbulence__rhokh')
-      call tke_bl%write_field('turbulence__tke')
-      call dtrdz_tq_bl%write_field('turbulence__dtrdz_tq')
-      call rdz_tq_bl%write_field('turbulence__rdz_tq')
-      call zhsc%write_field('turbulence__zhsc')
-      call level_ent%write_field('turbulence__level_ent')
-      call level_ent_dsc%write_field('turbulence__level_ent_dsc')
-      call ent_we_lim%write_field('turbulence__ent_we_lim')
-      call ent_t_frac%write_field('turbulence__ent_t_frac')
-      call ent_zrzi%write_field('turbulence__ent_zrzi')
-      call ent_we_lim_dsc%write_field('turbulence__ent_we_lim_dsc')
-      call ent_t_frac_dsc%write_field('turbulence__ent_t_frac_dsc')
-      call ent_zrzi_dsc%write_field('turbulence__ent_zrzi_dsc')
-      call bl_weight_1dbl%write_field('turbulence__bl_weight_1dbl')
+    ! Prognostic fields from turbulence collection
+    call ntml%write_field('turbulence__ntml')
+    call cumulus%write_field('turbulence__cumulus')
+    call bl_type_ind%write_field('turbulence__bl_type_ind')
+    call wvar%write_field('turbulence__wvar')
+    call dsldzm%write_field('turbulence__dsldzm')
+    call mix_len_bm%write_field('turbulence__mix_len_bm')
+    call gradrinr%write_field('turbulence__gradrinr')
+    call rhokh_bl%write_field('turbulence__rhokh')
+    call tke_bl%write_field('turbulence__tke')
+    call dtrdz_tq_bl%write_field('turbulence__dtrdz_tq')
+    call rdz_tq_bl%write_field('turbulence__rdz_tq')
+    call zhsc%write_field('turbulence__zhsc')
+    call level_ent%write_field('turbulence__level_ent')
+    call level_ent_dsc%write_field('turbulence__level_ent_dsc')
+    call ent_we_lim%write_field('turbulence__ent_we_lim')
+    call ent_t_frac%write_field('turbulence__ent_t_frac')
+    call ent_zrzi%write_field('turbulence__ent_zrzi')
+    call ent_we_lim_dsc%write_field('turbulence__ent_we_lim_dsc')
+    call ent_t_frac_dsc%write_field('turbulence__ent_t_frac_dsc')
+    call ent_zrzi_dsc%write_field('turbulence__ent_zrzi_dsc')
+    call bl_weight_1dbl%write_field('turbulence__bl_weight_1dbl')
 
-      ! Diagnostics computed in the kernel
-      if (zht_flag) call zht%write_field()
-      if (oblen_flag) call oblen%write_field()
-    end if
+    ! Diagnostics computed in the kernel
+    if (zht_flag) call zht%write_field()
+    if (oblen_flag) call oblen%write_field()
 
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
 
