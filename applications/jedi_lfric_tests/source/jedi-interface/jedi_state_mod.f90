@@ -1,5 +1,5 @@
 !-----------------------------------------------------------------------------
-! (C) Crown copyright 2022 Met Office. All rights reserved.
+! (C) Crown copyright 2022-2026 Met Office. All rights reserved.
 ! The file LICENCE, distributed with this code, contains details of the terms
 ! under which the code may be used.
 !-----------------------------------------------------------------------------
@@ -20,6 +20,9 @@ module jedi_state_mod
   use config_mod,                     only : config_type
   use constants_mod,                  only : i_def, l_def, str_def
   use field_collection_mod,           only : field_collection_type
+  use finite_element_config_mod,      only : element_order_h, element_order_v
+  use fs_continuity_mod,              only : W3
+  use function_space_collection_mod,  only : function_space_collection
   use driver_modeldb_mod,             only : modeldb_type
   use io_context_mod,                 only : io_context_type
   use jedi_geometry_mod,              only : jedi_geometry_type
@@ -147,6 +150,12 @@ subroutine state_initialiser_read( self,     &
 
   ! Local
   logical(l_def) :: use_pseudo_model
+  type( field_type ), allocatable        :: temp_field
+  character( len=str_def ), allocatable  :: variable_names(:)
+  integer( kind=i_def )                  :: idx, n_variables
+  type( field_collection_type ), pointer :: diagnostics_collection
+
+  nullify( diagnostics_collection, w3_fspace_ptr )
 
   call self%state_initialiser( geometry, config )
 
@@ -170,6 +179,30 @@ subroutine state_initialiser_read( self,     &
     endif
     call initialise_modeldb( "non-linear modeldb", modeldb_filename, &
                              geometry%get_mpi_comm(), self%modeldb )
+
+    ! Create diagnostic fields to request from the NL model.
+    ! Just add all of them and let routines in LFRic write to the correct ones.
+    ! TODO(JC): Maybe a cleaner way of doing this. E.g, have a flag in metadata
+    !           which denotes if the field is a diagnostic or not, and if so then add.
+    diagnostics_collection => self%modeldb%fields%get_field_collection("saved_diagnostics")
+
+    w3_fspace_ptr = function_space_collection%get_fs( geometry%mesh, element_order_h, &
+                                                      element_order_v, W3 )
+    n_variables = self%field_meta_data%get_n_variables()
+
+    do idx=1, n_variables
+      if (self%field_meta_data%get_variable_is_requestable_diagnostic(idx)) then
+        print*,"State: Added request field: ",self%field_meta_data%get_variable_name(idx)
+        if (allocated(temp_field)) deallocate(temp_field)
+        allocate(temp_field)
+
+        ! Initialise field with rubbish (apart from the name!). Let science code populate these.
+        call temp_field%initialise( vector_space=w3_fspace_ptr, &
+                                    name=self%field_meta_data%get_variable_name(idx) )
+        call diagnostics_collection%add_field( temp_field )
+      end if
+    end do
+
     self%has_a_modeldb = .true.
     call self%setup_interface_to_modeldb()
     call self%from_modeldb()
@@ -381,9 +414,12 @@ subroutine setup_interface_to_modeldb( self )
   integer(i_def)            :: n_variables
 
   type( field_collection_type ), pointer :: depository
+  type( field_collection_type ), pointer :: saved_diagnostics
+  type( field_collection_type ), pointer :: active_field_collection
 
-  nullify(depository)
+  nullify(depository, saved_diagnostics, active_field_collection)
   depository => self%modeldb%fields%get_field_collection("depository")
+  saved_diagnostics => self%modeldb%fields%get_field_collection("saved_diagnostics")
 
   n_variables = self%field_meta_data%get_n_variables()
 
@@ -397,9 +433,14 @@ subroutine setup_interface_to_modeldb( self )
   call self%geometry%get_horizontal_map(horizontal_map_ptr)
   do ivar=1, n_variables
 
-    ! Get the required data
+    ! Get the required data.
+    if (self%field_meta_data%get_variable_is_requestable_diagnostic(ivar)) then
+      active_field_collection => saved_diagnostics
+    else
+      active_field_collection => depository
+    endif
     call get_model_field( self%field_meta_data%get_variable_name(ivar), &
-                          depository, lfric_field_ptr )
+                          active_field_collection, lfric_field_ptr )
 
     atlas_data_ptr => self%fields(ivar)%get_data()
 

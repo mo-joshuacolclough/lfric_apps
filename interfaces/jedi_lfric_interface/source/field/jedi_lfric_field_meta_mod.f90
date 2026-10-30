@@ -34,6 +34,9 @@ module jedi_lfric_field_meta_mod
     !> A list of logicals that defines if the fields are 2D
     logical( kind=l_def ), allocatable    :: variable_is_2d(:)
 
+    !> A list of logicals that defines if the fields are diagnostics
+    logical( kind=l_def ), allocatable    :: variable_is_requestable_diagnostic(:)
+
   contains
 
     !> Initialiser
@@ -56,6 +59,10 @@ module jedi_lfric_field_meta_mod
 
     !> Get the variable logical defining if field is 2d for a given index
     procedure, public :: get_variable_is_2d
+
+    !> Get the variable logical defining if field is a diagnostic that can be
+    !> requested from the NL model.
+    procedure, public :: get_variable_is_requestable_diagnostic
 
     !> Check a list of variables with the list stored in the type
     procedure :: check_variables_exist
@@ -84,7 +91,8 @@ contains
 !>                                     uses the specified 2D mesh
 !> @param[in] variable_names           a list of required variable names
 subroutine initialise( self, variable_names, variable_function_spaces, &
-                       variable_is_2d )
+                       variable_is_2d, &
+                       variable_is_requestable_diagnostic )
 
   implicit none
 
@@ -92,11 +100,13 @@ subroutine initialise( self, variable_names, variable_function_spaces, &
   character(*), intent(in)                           :: variable_names(:)
   integer(kind=i_def), intent(in)                    :: variable_function_spaces(:)
   logical(kind=l_def), intent(in)                    :: variable_is_2d(:)
+  logical(kind=l_def), intent(in)                    :: variable_is_requestable_diagnostic(:)
 
   ! Get and check the size of the input data is consistent
   self%n_variables=size(variable_names)
   if ( self%n_variables /= size(variable_function_spaces ) .or. &
-       self%n_variables /= size(variable_is_2d) ) then
+       self%n_variables /= size(variable_is_2d) .or. &
+       self%n_variables /= size(variable_is_requestable_diagnostic) ) then
     write(log_scratch_space, '(A)') &
       "Check the size of the input arrays, they should be consistent."
     call log_event( log_scratch_space, LOG_LEVEL_ERROR )
@@ -106,10 +116,12 @@ subroutine initialise( self, variable_names, variable_function_spaces, &
   allocate( self%variable_names(self%n_variables) )
   allocate( self%variable_function_spaces(self%n_variables) )
   allocate( self%variable_is_2d(self%n_variables) )
+  allocate( self%variable_is_requestable_diagnostic(self%n_variables) )
 
   self%variable_names = variable_names
   self%variable_function_spaces = variable_function_spaces
   self%variable_is_2d = variable_is_2d
+  self%variable_is_requestable_diagnostic = variable_is_requestable_diagnostic
 
 end subroutine initialise
 
@@ -196,6 +208,25 @@ function get_variable_is_2d(self, variable_index) result(variable_is_2d)
 
 end function get_variable_is_2d
 
+!> @brief    Get the variable logical defining if field is a requestable diagnostic
+!>
+!> @param[in] variable_index                       The index in the array to return
+!> @return    variable_is_requestable_diagnostic   The logical defining if field is 2D for the
+!>                                                 requested index
+function get_variable_is_requestable_diagnostic(self, variable_index) &
+    result(variable_is_requestable_diagnostic)
+
+  implicit none
+
+  class( jedi_lfric_field_meta_type ) :: self
+  integer( kind=i_def )               :: variable_index
+  logical( kind=l_def )               :: variable_is_requestable_diagnostic
+
+  call self%check_index(variable_index,"get_variable_is_requestable_diagnostic")
+  variable_is_requestable_diagnostic = self%variable_is_requestable_diagnostic(variable_index)
+
+end function get_variable_is_requestable_diagnostic
+
 !> @brief    Check a list of variables with the list stored in the type
 !>
 !> @param[in] variable_names       a list of variables to compare
@@ -272,17 +303,21 @@ subroutine jedi_lfric_field_meta_type_assign(dest, source)
   ! Deallocate if already allocated
   if ( allocated(dest%variable_names) ) deallocate(dest%variable_names)
   if ( allocated(dest%variable_is_2d) ) deallocate(dest%variable_is_2d)
+  if ( allocated(dest%variable_is_requestable_diagnostic) ) &
+    deallocate(dest%variable_is_requestable_diagnostic)
   if ( allocated(dest%variable_function_spaces) ) &
     deallocate(dest%variable_function_spaces)
 
   ! Allocate
   allocate( dest%variable_names(dest%n_variables) )
   allocate( dest%variable_is_2d(dest%n_variables) )
+  allocate( dest%variable_is_requestable_diagnostic(dest%n_variables) )
   allocate( dest%variable_function_spaces(dest%n_variables) )
 
   ! Copy input meta-data
   dest%variable_names = source%variable_names
   dest%variable_is_2d = source%variable_is_2d
+  dest%variable_is_requestable_diagnostic = source%variable_is_requestable_diagnostic
   dest%variable_function_spaces = source%variable_function_spaces
 
 end subroutine jedi_lfric_field_meta_type_assign
@@ -299,6 +334,8 @@ subroutine jedi_lfric_field_meta_destructor(self)
   if ( allocated(self%variable_function_spaces) ) &
                                       deallocate(self%variable_function_spaces)
   if ( allocated(self%variable_is_2d) ) deallocate(self%variable_is_2d)
+  if ( allocated(self%variable_is_requestable_diagnostic) ) &
+    deallocate(self%variable_is_requestable_diagnostic)
 
 end subroutine jedi_lfric_field_meta_destructor
 

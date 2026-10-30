@@ -173,15 +173,15 @@ contains
 
     if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
 
-    nullify(diagnostic_collection, field_ptr)
+    nullify( diagnostic_collection, field_ptr )
 
     ! Exit early if diagnostics saving has not been requested.
     ! (i.e, there is no available field collection)
-    if (.not. modeldb%fields%field_collection_exists("diagnostics")) then
+    if (.not. modeldb%fields%field_collection_exists("saved_diagnostics")) then
       return
     end if
 
-    diagnostic_collection => modeldb%fields%get_field_collection("diagnostics")
+    diagnostic_collection => modeldb%fields%get_field_collection("saved_diagnostics")
 
     ! Go through available diagnostics and overwrite those that are available.
     if (diagnostic_collection%field_exists("oblen")) then
