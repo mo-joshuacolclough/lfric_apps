@@ -7,7 +7,8 @@
 
 module bl_exp_diags_mod
 
-  use constants_mod,                 only: l_def, str_def
+  use constants_mod,                 only: l_def, str_def, i_def
+  use driver_modeldb_mod,            only: modeldb_type
   use field_mod,                     only: field_type
   use field_parent_mod,              only: field_parent_type
   use field_collection_mod,          only: field_collection_type
@@ -25,8 +26,8 @@ module bl_exp_diags_mod
 
   public  :: initialise_diags_for_bl_exp
   public  :: output_diags_for_bl_exp
-  private :: overwrite_field_if_available
   public  :: save_diags_for_bl_exp
+  private :: overwrite_field
 
 contains
 
@@ -134,7 +135,7 @@ contains
   !> @param[inout] collection          Field collection to search and overwrite.
   !> @param[in]    name                Name of the field.
   !> @param[in]    field_to_copy       New field to replace the existing field.
-  subroutine overwrite_field_if_available(collection, name, field_to_copy)
+  subroutine overwrite_field(collection, name, field_to_copy)
 
     implicit none
 
@@ -147,12 +148,13 @@ contains
 
     if (collection%field_exists(name)) then
       call collection%remove_field(name)
-      allocate(new_field)
-      call field_to_copy%copy_field_serial(new_field)
-      call collection%add_field(new_field)
     end if
 
-  end subroutine overwrite_field_if_available
+    allocate(new_field)
+    call field_to_copy%copy_field_serial(new_field)
+    call collection%add_field(new_field)
+
+  end subroutine overwrite_field
 
   !> @brief Save diagnostics to a modeldb.
   !> @param[inout] modeldb             ModelDB containing the model fields.
@@ -162,31 +164,37 @@ contains
     implicit none
 
     ! Prognostic fields to output
-    type( modeldb_type ), intent(inout) :: modeldb
+    type( modeldb_type ), intent(in) :: modeldb
     type( field_type ),   intent(in)    :: oblen
 
     ! Local vars
     integer( tik )  :: id
 
     type( field_collection_type ), pointer :: diagnostic_collection
-    character(len=str_def)                 :: field_name
+    character( len=str_def ), pointer      :: requested_diagnostics(:)
+    integer( kind=i_def )                  :: idx
 
     if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
 
-    nullify( diagnostic_collection, field_ptr )
+    nullify( diagnostic_collection, requested_diagnostics )
 
     ! Exit early if diagnostics saving has not been requested.
     ! (i.e, there is no available field collection)
-    if (.not. modeldb%fields%field_collection_exists("saved_diagnostics")) then
+    if (.not. modeldb%values%key_value_exists("requested_diagnostics") .or. &
+        .not. modeldb%fields%field_collection_exists("saved_diagnostics")) then
       return
     end if
 
+    call modeldb%values%get_value("requested_diagnostics", requested_diagnostics)
     diagnostic_collection => modeldb%fields%get_field_collection("saved_diagnostics")
 
-    ! Go through available diagnostics and overwrite those that are available.
-    if (diagnostic_collection%field_exists("oblen")) then
-      call overwrite_field_if_available(diagnostic_collection, "oblen", oblen)
-    end if
+    ! Go through requested diagnostics and overwrite those that are available.
+    do idx=1,size(requested_diagnostics)
+      select case (trim(requested_diagnostics(idx)))
+        case ("oblen")
+          call overwrite_field(diagnostic_collection, "oblen", oblen)
+      end select
+    end do
 
     ! TODO: More variables here.
 

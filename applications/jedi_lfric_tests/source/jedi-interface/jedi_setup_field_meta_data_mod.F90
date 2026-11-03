@@ -40,24 +40,28 @@ module jedi_setup_field_meta_data_mod
 
   ! Local
   logical( kind=l_def ), allocatable :: variable_is_2d(:)
+  logical( kind=l_def ), allocatable :: variable_is_requestable_diagnostic(:)
   integer( kind=i_def ), allocatable :: variable_function_spaces(:)
   integer( kind=i_def )              :: ivar
   integer( kind=i_def )              :: nvars
 
   ! Setup arrays
   nvars = size(variable_names)
-  allocate( variable_function_spaces(nvars), variable_is_2d(nvars) )
+  allocate( variable_function_spaces(nvars), variable_is_2d(nvars), &
+            variable_is_requestable_diagnostic(nvars) )
 
   ! Get the field info
   do ivar = 1, nvars
-    call get_field_info( variable_function_spaces(ivar), &
-                         variable_is_2d(ivar),           &
+    call get_field_info( variable_function_spaces(ivar),           &
+                         variable_is_2d(ivar),                     &
+                         variable_is_requestable_diagnostic(ivar), &
                          variable_names(ivar) )
   enddo
 
   ! Setup field_meta_data
-  call field_meta_data%initialise( variable_names,           &
-                                   variable_function_spaces, &
+  call field_meta_data%initialise( variable_names,                     &
+                                   variable_function_spaces,           &
+                                   variable_is_requestable_diagnostic, &
                                    variable_is_2d )
 
   end subroutine setup_field_meta_data
@@ -87,8 +91,6 @@ module jedi_setup_field_meta_data_mod
       case ( "pressure_in_wth" )     ! DIAGNOSTIC - gungho_diagnostics_driver
         function_space = Wtheta
         ! requestable_diagnostic = .true.
-      case ( "bulk_fraction" )       ! PROGNOSTIC
-        function_space = Wtheta
       case ( "exner_in_wth" )        ! PROGNOSTIC
         function_space = Wtheta
       case ( "height_wtheta" )       ! ANCIl

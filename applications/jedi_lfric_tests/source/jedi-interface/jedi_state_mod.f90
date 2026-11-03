@@ -19,9 +19,11 @@ module jedi_state_mod
   use atlas_field_interface_mod,      only : atlas_field_interface_type
   use config_mod,                     only : config_type
   use constants_mod,                  only : i_def, l_def, str_def
+  use field_mod,                      only : field_type
   use field_collection_mod,           only : field_collection_type
   use finite_element_config_mod,      only : element_order_h, element_order_v
   use fs_continuity_mod,              only : W3
+  use function_space_mod,             only : function_space_type
   use function_space_collection_mod,  only : function_space_collection
   use driver_modeldb_mod,             only : modeldb_type
   use io_context_mod,                 only : io_context_type
@@ -34,6 +36,7 @@ module jedi_state_mod
                                              log_scratch_space,  &
                                              LOG_LEVEL_INFO,     &
                                              LOG_LEVEL_ERROR
+  use mesh_mod,                       only : mesh_type
   use model_clock_mod,                only : model_clock_type
 
   implicit none
@@ -48,10 +51,6 @@ type, public :: jedi_state_type
 
   !> An object that stores the field meta-data associated with the fields
   type( jedi_lfric_field_meta_type )              :: field_meta_data
-
-  !> Interface field linking the Atlas emulator fields and LFRic fields in the
-  !> modeldb (to do field copies)
-  type( atlas_field_interface_type ), allocatable :: fields_to_modeldb(:)
 
   !> Logical that indicates the state has an instance of a modeldb that has been created
   logical                                         :: has_a_modeldb = .false.
@@ -75,10 +74,6 @@ contains
   !> Jedi state initialiser.
   procedure :: initialise => state_initialiser_read
   procedure :: state_initialiser
-
-  !> Setup the atlas_field_interface_type that enables copying between Atlas
-  !> field emulators and the LFRic fields in the modeldb
-  procedure, private :: setup_interface_to_modeldb
 
   !> Setup the atlas_field_interface_type that enables copying between Atlas
   !> field emulators and the fields in a LFRic field collection
@@ -140,6 +135,8 @@ subroutine state_initialiser_read( self,     &
                                    modeldb_filename )
 
   use jedi_lfric_nl_modeldb_driver_mod, only : initialise_modeldb
+  use key_value_mod,                    only : create_key_value, &
+                                               key_value_type
 
   implicit none
 
@@ -150,12 +147,14 @@ subroutine state_initialiser_read( self,     &
 
   ! Local
   logical(l_def) :: use_pseudo_model
-  type( field_type ), allocatable        :: temp_field
   character( len=str_def ), allocatable  :: variable_names(:)
-  integer( kind=i_def )                  :: idx, n_variables
+  character( len=str_def ), allocatable  :: requested_diagnostics(:)
+  class( key_value_type ), pointer       :: requested_diagnostics_value
+  integer( kind=i_def )                  :: idx, n_variables, match_count
   type( field_collection_type ), pointer :: diagnostics_collection
+  type( mesh_type ), pointer             :: mesh
 
-  nullify( diagnostics_collection, w3_fspace_ptr )
+  nullify( diagnostics_collection, requested_diagnostics_value, mesh )
 
   call self%state_initialiser( geometry, config )
 
@@ -185,27 +184,39 @@ subroutine state_initialiser_read( self,     &
     ! TODO(JC): Maybe a cleaner way of doing this. E.g, have a flag in metadata
     !           which denotes if the field is a diagnostic or not, and if so then add.
     diagnostics_collection => self%modeldb%fields%get_field_collection("saved_diagnostics")
-
-    w3_fspace_ptr = function_space_collection%get_fs( geometry%mesh, element_order_h, &
-                                                      element_order_v, W3 )
     n_variables = self%field_meta_data%get_n_variables()
 
+    ! Filter variables.
+    ! Figure out how many first, so that an array can be allocated.
+    match_count = 0
     do idx=1, n_variables
       if (self%field_meta_data%get_variable_is_requestable_diagnostic(idx)) then
-        print*,"State: Added request field: ",self%field_meta_data%get_variable_name(idx)
-        if (allocated(temp_field)) deallocate(temp_field)
-        allocate(temp_field)
-
-        ! Initialise field with rubbish (apart from the name!). Let science code populate these.
-        call temp_field%initialise( vector_space=w3_fspace_ptr, &
-                                    name=self%field_meta_data%get_variable_name(idx) )
-        call diagnostics_collection%add_field( temp_field )
+        match_count = match_count + 1
+      end if
+    end do
+    
+    allocate(requested_diagnostics(match_count))
+    match_count = 0
+    do idx=1, n_variables
+      if (self%field_meta_data%get_variable_is_requestable_diagnostic(idx)) then
+        match_count = match_count + 1
+        requested_diagnostics(match_count) = self%field_meta_data%get_variable_name(idx)
+        print*,"State: Added request field: ",requested_diagnostics(match_count)
       end if
     end do
 
+    ! Add this metadata to modeldb.
+    ! NOTE(JC): The below should be possible but the correct
+    !           generic interface is not implemented.
+    !call self%modeldb%values%add_key_value("requested_diagnostics", &
+    !                                       requested_diagnostics)
+    requested_diagnostics_value => create_key_value("requested_diagnostics", &
+                                                    requested_diagnostics)
+    call self%modeldb%values%add_key_value(requested_diagnostics_value)
+
     self%has_a_modeldb = .true.
-    call self%setup_interface_to_modeldb()
-    call self%from_modeldb()
+    !call self%setup_interface_to_modeldb()
+    !call self%from_modeldb()
   end if
 
 end subroutine state_initialiser_read
@@ -394,20 +405,19 @@ subroutine write_file( self, write_time )
 
 end subroutine write_file
 
-!> @brief    Setup fields_to_modeldb variable that enables copying between
-!>           Atlas field emulators and the LFRic fields in the modeldb
+!> @brief    Copy from modeldb to the Atlas field emulators
 !>
-subroutine setup_interface_to_modeldb( self )
+subroutine from_modeldb( self )
 
   use jedi_lfric_utils_mod,  only: get_model_field
-  use field_mod,             only: field_type
 
   implicit none
 
   class( jedi_state_type ), intent(inout) :: self
 
   ! Local
-  integer(i_def)            :: ivar
+  integer(i_def) :: ivar
+  type( atlas_field_interface_type ), allocatable :: field_to_modeldb
   type(field_type), pointer :: lfric_field_ptr
   real(real64),     pointer :: atlas_data_ptr(:,:)
   integer(i_def),   pointer :: horizontal_map_ptr(:)
@@ -416,63 +426,47 @@ subroutine setup_interface_to_modeldb( self )
   type( field_collection_type ), pointer :: depository
   type( field_collection_type ), pointer :: saved_diagnostics
   type( field_collection_type ), pointer :: active_field_collection
+  !> @todo Will need some sort of transform for winds and
+  !>       possibly other higher order elements.
+  !>
+  !>       call transform_winds(...)
 
-  nullify(depository, saved_diagnostics, active_field_collection)
+  nullify( depository, saved_diagnostics, active_field_collection, &
+           lfric_field_ptr, atlas_data_ptr, horizontal_map_ptr )
+
+  ! Setup interfaces
   depository => self%modeldb%fields%get_field_collection("depository")
   saved_diagnostics => self%modeldb%fields%get_field_collection("saved_diagnostics")
 
   n_variables = self%field_meta_data%get_n_variables()
 
-  ! Allocate space for the interface fields
-  if ( allocated( self%fields_to_modeldb ) ) then
-    deallocate( self%fields_to_modeldb )
-  endif
-  allocate( self%fields_to_modeldb( n_variables ) )
-
   ! Link the Atlas emulator fields with lfric fields
   call self%geometry%get_horizontal_map(horizontal_map_ptr)
   do ivar=1, n_variables
-
     ! Get the required data.
     if (self%field_meta_data%get_variable_is_requestable_diagnostic(ivar)) then
       active_field_collection => saved_diagnostics
     else
       active_field_collection => depository
     endif
+
+    ! NOTE: If a field requested is a diagnostic and it has not been populated
+    !       by the model, then it will not be available in the field collection.
     call get_model_field( self%field_meta_data%get_variable_name(ivar), &
                           active_field_collection, lfric_field_ptr )
 
     atlas_data_ptr => self%fields(ivar)%get_data()
 
-    call self%fields_to_modeldb(ivar)%initialise( atlas_data_ptr,     &
-                                                  horizontal_map_ptr, &
-                                                  lfric_field_ptr )
-
+    if ( allocated( field_to_modeldb ) ) then
+      deallocate( field_to_modeldb )
+    end if
+    allocate( field_to_modeldb )
+    call field_to_modeldb%initialise( atlas_data_ptr,     &
+                                      horizontal_map_ptr, &
+                                      lfric_field_ptr )
+    ! Copy to the Atlas emulator fields.
+    call field_to_modeldb%copy_from_lfric()
   end do
-
-end subroutine setup_interface_to_modeldb
-
-!> @brief    Copy from modeldb to the Atlas field emulators
-!>
-subroutine from_modeldb( self )
-
-  implicit none
-
-  class( jedi_state_type ), intent(inout) :: self
-
-  ! Local
-  integer(i_def) :: ivar
-
-  !> @todo Will need some sort of transform for winds and
-  !>       possibly other higher order elements.
-  !>
-  !>       call transform_winds(...)
-
-  ! copy to the Atlas emulator fields
-  do ivar = 1, size(self%fields_to_modeldb)
-    call self%fields_to_modeldb(ivar)%copy_from_lfric()
-  end do
-
 end subroutine from_modeldb
 
 !> @brief    Setup Atlas-LFRic interface_fields that enables copying
@@ -488,7 +482,6 @@ subroutine setup_interface_to_field_collection( self,             &
                                                 field_collection )
 
   use jedi_lfric_utils_mod,  only: get_model_field
-  use field_mod,             only: field_type
 
   implicit none
 
@@ -504,6 +497,9 @@ subroutine setup_interface_to_field_collection( self,             &
   integer(i_def),   pointer :: horizontal_map_ptr(:)
   integer(i_def)            :: n_variables
   logical                   :: all_variables_exists
+  type( atlas_field_interface_type ), pointer :: fields_to_modeldb(:)
+
+  nullify( fields_to_modeldb )
 
   ! Check that the state contains all the required fields
   all_variables_exists = &
@@ -714,7 +710,6 @@ subroutine jedi_state_destructor( self )
 
   self%geometry => null()
   if ( allocated(self%fields ) ) deallocate(self%fields )
-  if ( allocated( self%fields_to_modeldb ) ) deallocate( self%fields_to_modeldb )
   if (self%has_a_modeldb) then
     call finalise_modeldb( self%modeldb )
     self%has_a_modeldb = .false.
