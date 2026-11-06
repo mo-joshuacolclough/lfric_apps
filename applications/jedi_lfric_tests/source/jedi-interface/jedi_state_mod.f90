@@ -149,12 +149,12 @@ subroutine state_initialiser_read( self,     &
   logical(l_def) :: use_pseudo_model
   character( len=str_def ), allocatable  :: variable_names(:)
   character( len=str_def ), allocatable  :: requested_diagnostics(:)
+  character( len=str_def )               :: diagnostic_prefix
   class( key_value_type ), pointer       :: requested_diagnostics_value
   integer( kind=i_def )                  :: idx, n_variables, match_count
-  type( field_collection_type ), pointer :: diagnostics_collection
   type( mesh_type ), pointer             :: mesh
 
-  nullify( diagnostics_collection, requested_diagnostics_value, mesh )
+  nullify( requested_diagnostics_value, mesh )
 
   call self%state_initialiser( geometry, config )
 
@@ -183,24 +183,27 @@ subroutine state_initialiser_read( self,     &
     ! Just add all of them and let routines in LFRic write to the correct ones.
     ! TODO(JC): Maybe a cleaner way of doing this. E.g, have a flag in metadata
     !           which denotes if the field is a diagnostic or not, and if so then add.
-    diagnostics_collection => self%modeldb%fields%get_field_collection("saved_diagnostics")
     n_variables = self%field_meta_data%get_n_variables()
 
     ! Filter variables.
     ! Figure out how many first, so that an array can be allocated.
     match_count = 0
     do idx=1, n_variables
-      if (self%field_meta_data%get_variable_is_requestable_diagnostic(idx)) then
+      if (self%field_meta_data%variable_is_requestable_diagnostic(idx)) then
         match_count = match_count + 1
       end if
     end do
-    
     allocate(requested_diagnostics(match_count))
+
     match_count = 0
     do idx=1, n_variables
-      if (self%field_meta_data%get_variable_is_requestable_diagnostic(idx)) then
+      diagnostic_prefix = self%field_meta_data%get_variable_diagnostic_prefix(idx)
+      if (trim(diagnostic_prefix) /= "none") then
         match_count = match_count + 1
         requested_diagnostics(match_count) = self%field_meta_data%get_variable_name(idx)
+        ! Get full diagnostic name. For example "oblen" -> "turbulence__oblen"
+        requested_diagnostics(match_count) = trim(self%field_meta_data%get_variable_diagnostic_prefix(idx))//&
+          trim(requested_diagnostics(match_count))
         print*,"State: Added request field: ",requested_diagnostics(match_count)
       end if
     end do
@@ -422,6 +425,8 @@ subroutine from_modeldb( self )
   real(real64),     pointer :: atlas_data_ptr(:,:)
   integer(i_def),   pointer :: horizontal_map_ptr(:)
   integer(i_def)            :: n_variables
+  character( len=str_def )  :: varname
+  character( len=str_def )  :: diagnostic_prefix
 
   type( field_collection_type ), pointer :: depository
   type( field_collection_type ), pointer :: saved_diagnostics
@@ -436,23 +441,27 @@ subroutine from_modeldb( self )
 
   ! Setup interfaces
   depository => self%modeldb%fields%get_field_collection("depository")
-  saved_diagnostics => self%modeldb%fields%get_field_collection("saved_diagnostics")
 
+  saved_diagnostics => self%modeldb%fields%get_field_collection("saved_diagnostics")
   n_variables = self%field_meta_data%get_n_variables()
 
   ! Link the Atlas emulator fields with lfric fields
   call self%geometry%get_horizontal_map(horizontal_map_ptr)
   do ivar=1, n_variables
+    varname = self%field_meta_data%get_variable_name(ivar)
+    diagnostic_prefix = self%field_meta_data%get_variable_diagnostic_prefix(ivar)
+
     ! Get the required data.
-    if (self%field_meta_data%get_variable_is_requestable_diagnostic(ivar)) then
+    if (trim(diagnostic_prefix) /= "none") then
       active_field_collection => saved_diagnostics
+      varname = trim(diagnostic_prefix)//trim(varname)
     else
       active_field_collection => depository
     endif
 
     ! NOTE: If a field requested is a diagnostic and it has not been populated
     !       by the model, then it will not be available in the field collection.
-    call get_model_field( self%field_meta_data%get_variable_name(ivar), &
+    call get_model_field( varname, &
                           active_field_collection, lfric_field_ptr )
 
     atlas_data_ptr => self%fields(ivar)%get_data()
@@ -722,6 +731,9 @@ end subroutine jedi_state_destructor
 !>
 subroutine print( self )
 
+  use field_collection_iterator_mod, only: field_collection_iterator_type
+  use field_parent_mod,              only: field_parent_type
+
   implicit none
 
   class( jedi_state_type ), target, intent(inout) :: self
@@ -729,6 +741,20 @@ subroutine print( self )
   ! Local
   integer(i_def)                            :: ivar
   type (atlas_field_emulator_type), pointer :: atlas_field_ptr
+
+  type(field_collection_iterator_type) :: iterator
+  type(field_collection_type), pointer :: depository
+  type(field_collection_type), pointer :: prognostics
+  type(field_collection_type), pointer :: diagnostics
+  type(field_collection_type), pointer :: saved_diagnostics
+  class(field_parent_type), pointer    :: field_ptr
+
+  nullify(depository, prognostics, diagnostics, saved_diagnostics, field_ptr)
+
+  depository => self%modeldb%fields%get_field_collection("depository")
+  prognostics => self%modeldb%fields%get_field_collection("prognostic_fields")
+  diagnostics => self%modeldb%fields%get_field_collection("diagnostic_fields")
+  saved_diagnostics => self%modeldb%fields%get_field_collection("saved_diagnostics")
 
   ! Printing data
   call log_event( "State print ----", LOG_LEVEL_INFO )
@@ -743,6 +769,29 @@ subroutine print( self )
       ", Max: ", atlas_field_ptr%maximum(), &
       ", Min: ", atlas_field_ptr%minimum()
     call log_event( log_scratch_space, LOG_LEVEL_INFO )
+  end do
+
+  ! DEBUG(JC): Output contents of modeldb.
+  write(log_scratch_space, *) "Depository size => ",depository%get_length()
+  call log_event(log_scratch_space, LOG_LEVEL_INFO)
+  write(log_scratch_space, *) "Prognostics size => ",prognostics%get_length()
+  call log_event(log_scratch_space, LOG_LEVEL_INFO)
+  write(log_scratch_space, *) "Diagnostics size => ",diagnostics%get_length()
+  call log_event(log_scratch_space, LOG_LEVEL_INFO)
+  write(log_scratch_space, *) "Saved diagnostics size => ",saved_diagnostics%get_length()
+  call log_event(log_scratch_space, LOG_LEVEL_INFO)
+
+  
+  nullify(field_ptr)
+  call iterator%initialise(saved_diagnostics)
+  do
+    if ( .not.iterator%has_next() ) exit
+    field_ptr => iterator%next()
+    select type(field_ptr)
+      type is (field_type)
+        write(log_scratch_space, *) "Saved diagnostic ", field_ptr%get_name()
+        call log_event(log_scratch_space, LOG_LEVEL_INFO)
+    end select
   end do
 
 end subroutine print

@@ -500,6 +500,7 @@ contains
     ! Use diagnostic output frequency to determine whether to write
     ! diagnostics on this timestep
 
+    ! NOTE(JC): Add flag here to override for JEDI. (? - should write to field collection regardless)
     if ( ( mod(modeldb%clock%get_step(), diagnostic_frequency) == 0 ) &
          .and. ( write_diag ) ) then
 

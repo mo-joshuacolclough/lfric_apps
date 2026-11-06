@@ -32,20 +32,44 @@ module bl_exp_diags_mod
 contains
 
   !> @brief Initialise fields for locally-computed diagnostics
+  !> @param[in]    modeldb            ModelDB containing the model configuration.
   !> @param[inout] zht                Turbulent mixing height
   !> @param[inout] oblen              Obukhov length
-  subroutine initialise_diags_for_bl_exp(zht, oblen)
+  subroutine initialise_diags_for_bl_exp(modeldb, zht, oblen)
 
     implicit none
 
-    type( field_type ), intent(inout) :: zht
-    type( field_type ), intent(inout) :: oblen
+    type( modeldb_type ), intent(in)    :: modeldb
+    type( field_type ),   intent(inout) :: zht
+    type( field_type ),   intent(inout) :: oblen
+
     integer( tik )                    :: id
+    integer( kind=i_def )             :: idx
+    logical( kind=l_def )             :: activate_zht
+    logical( kind=l_def )             :: activate_oblen
+    character( len=str_def ), pointer :: requested_diagnostics(:)
+
+    nullify( requested_diagnostics )
 
     if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
 
-    zht_flag = init_diag(zht, 'turbulence__zht')
-    oblen_flag = init_diag(oblen, 'turbulence__oblen')
+    activate_zht = .false.
+    activate_oblen = .false.
+
+    ! Activate fields that are required for caching.
+    call modeldb%values%get_value("requested_diagnostics", requested_diagnostics)
+    do idx=1,size(requested_diagnostics)
+      select case (trim(requested_diagnostics(idx)))
+        case ("turbulence__oblen")
+          activate_oblen = .true.
+      end select
+    end do
+
+    zht_flag = init_diag(zht, 'turbulence__zht', activate=activate_zht)
+    oblen_flag = init_diag(oblen, 'turbulence__oblen', activate=activate_oblen)
+
+    print*,"OBLEN FLAG =>",oblen_flag
+    print*,"ACTIVATE OBLEN? =>",activate_oblen
 
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
 
@@ -145,14 +169,20 @@ contains
 
     ! local
     type( field_type ), allocatable :: new_field
+    type( field_type ), pointer     :: existing_field
+
+    nullify( existing_field )
 
     if (collection%field_exists(name)) then
-      call collection%remove_field(name)
+      print*, "overwrite_field: Fetched existing field.", name
+      call collection%get_field(name, existing_field)
+      call field_to_copy%copy_field_serial( existing_field )
+    else
+      print*, "overwrite_field: Added field =>", name
+      allocate( new_field )
+      call field_to_copy%copy_field_serial( new_field )
+      call collection%add_field( new_field )
     end if
-
-    allocate(new_field)
-    call field_to_copy%copy_field_serial(new_field)
-    call collection%add_field(new_field)
 
   end subroutine overwrite_field
 
@@ -165,7 +195,7 @@ contains
 
     ! Prognostic fields to output
     type( modeldb_type ), intent(in) :: modeldb
-    type( field_type ),   intent(in)    :: oblen
+    type( field_type ),   intent(in) :: oblen
 
     ! Local vars
     integer( tik )  :: id
@@ -180,6 +210,17 @@ contains
 
     ! Exit early if diagnostics saving has not been requested.
     ! (i.e, there is no available field collection)
+
+    ! -- DEBUG
+    if (.not. modeldb%values%key_value_exists("requested_diagnostics")) then
+      print*,"NO requested_diagnostics KEY IN MODELDB!"
+    end if
+
+    if (.not. modeldb%fields%field_collection_exists("saved_diagnostics")) then
+      print*,"NO saved_diagnostics COLLECTION IN MODELDB!"
+    end if
+    ! -- DEBUG
+
     if (.not. modeldb%values%key_value_exists("requested_diagnostics") .or. &
         .not. modeldb%fields%field_collection_exists("saved_diagnostics")) then
       return
@@ -191,8 +232,9 @@ contains
     ! Go through requested diagnostics and overwrite those that are available.
     do idx=1,size(requested_diagnostics)
       select case (trim(requested_diagnostics(idx)))
-        case ("oblen")
-          call overwrite_field(diagnostic_collection, "oblen", oblen)
+        case ("turbulence__oblen")
+          print*,"WRITING OBLEN"
+          call overwrite_field(diagnostic_collection, oblen%get_name(), oblen)
       end select
     end do
 

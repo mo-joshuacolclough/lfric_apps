@@ -22,7 +22,7 @@ module jedi_model_mod
   use jedi_state_mod,          only: jedi_state_type
   use log_mod,                 only: log_event,         &
                                      log_scratch_space, &
-                                     LOG_LEVEL_ERROR
+                                     LOG_LEVEL_ERROR, LOG_LEVEL_INFO
 
   implicit none
 
@@ -102,8 +102,12 @@ subroutine model_step(self, state)
   class( jedi_model_type ), target, intent(inout) :: self
   type( jedi_state_type ),          intent(inout) :: state
 
+  call log_event("BEFORE STEP", LOG_LEVEL_INFO)
+  call state%print()
   ! step gungho
   call step_nl( state%modeldb )
+  call log_event("AFTER STEP", LOG_LEVEL_INFO)
+  call state%print()
 
   ! Copy fields from model data
   call state%from_modeldb()
