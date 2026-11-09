@@ -173,10 +173,12 @@ subroutine state_initialiser_read( self,     &
     call initialise_modeldb( "non-linear modeldb", modeldb_filename, &
                              geometry%get_mpi_comm(), self%modeldb )
 
-    ! Create diagnostic fields to request from the NL model.
-    ! Just add all of them and let routines in LFRic write to the correct ones.
-    ! TODO(JC): Maybe a cleaner way of doing this. E.g, have a flag in metadata
-    !           which denotes if the field is a diagnostic or not, and if so then add.
+    ! Set up a request for diagnostic variables from the model.
+    ! 1) Filter variables from the state YAML for ones that can be requested.
+    ! 2) Create a key-value object in modeldb which can be checked during the model
+    !    run, at the point where diagnostics are created.
+    ! 3) When `from_modeldb` is called, read diagnostics from a dedicated
+    !    "saved_diagnostics" field collection in modeldb.
     n_variables = self%field_meta_data%get_n_variables()
 
     ! Filter variables.
