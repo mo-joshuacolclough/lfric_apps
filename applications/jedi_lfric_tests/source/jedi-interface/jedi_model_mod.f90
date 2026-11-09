@@ -99,6 +99,9 @@ subroutine model_step(self, state)
   class( jedi_model_type ), target, intent(inout) :: self
   type( jedi_state_type ),          intent(inout) :: state
 
+  ! step gungho
+  call step_nl( state%modeldb )
+
   ! Copy fields from model data
   call state%from_modeldb()
 
