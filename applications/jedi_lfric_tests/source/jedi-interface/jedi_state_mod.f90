@@ -176,10 +176,12 @@ subroutine state_initialiser_read( self,     &
 
     ! Set up a request for diagnostic variables from the model.
     ! 1) Filter variables from the state YAML for ones that can be requested.
-    ! 2) Create a key-value object in modeldb which can be checked during the model
-    !    run, at the point where diagnostics are created.
-    ! 3) When `from_modeldb` is called, read diagnostics from a dedicated
-    !    "saved_diagnostics" field collection in modeldb.
+    ! 2) Create a key-value object in modeldb which can be read by the model
+    !    during the model run at the point where diagnostics are created, telling
+    !    the model to keep hold of these variables in a dedicated "saved_diagnostics"
+    !    field collection.
+    ! 3) When `from_modeldb` is called, read diagnostics from the "saved_diagnostics"
+    !    field collection.
     n_variables = self%field_meta_data%get_n_variables()
 
     ! Filter variables.
