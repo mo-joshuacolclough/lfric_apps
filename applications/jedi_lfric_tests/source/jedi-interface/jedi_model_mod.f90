@@ -20,9 +20,6 @@ module jedi_model_mod
   use jedi_lfric_datetime_mod, only: jedi_datetime_type
   use jedi_lfric_duration_mod, only: jedi_duration_type
   use jedi_state_mod,          only: jedi_state_type
-  use log_mod,                 only: log_event,         &
-                                     log_scratch_space, &
-                                     LOG_LEVEL_ERROR, LOG_LEVEL_INFO
 
   implicit none
 
@@ -102,10 +99,6 @@ subroutine model_step(self, state)
   class( jedi_model_type ), target, intent(inout) :: self
   type( jedi_state_type ),          intent(inout) :: state
 
-  call step_nl( state%modeldb )
-  call log_event("AFTER STEP", LOG_LEVEL_INFO)
-  call state%print()
-
   ! Copy fields from model data
   call state%from_modeldb()
 
@@ -159,9 +152,6 @@ subroutine forecast(self, state, forecast_length, post_processor)
   ! Local
   type( jedi_datetime_type ) :: end_time
 
-  call log_event( "--- JEDI Model forecast starting ---", LOG_LEVEL_INFO )
-  call state%print()
-
   ! Get the end time
   end_time = state%valid_time() + forecast_length
 
@@ -180,9 +170,6 @@ subroutine forecast(self, state, forecast_length, post_processor)
   ! Finalize model and post processor
   call post_processor%pp_final( state )
   call self%model_final( state )
-
-  call log_event( "--- JEDI Model forecast finished ---", LOG_LEVEL_INFO )
-  call state%print()
 
 end subroutine forecast
 

@@ -206,6 +206,16 @@ subroutine state_initialiser_read( self,     &
     requested_diagnostics_value => create_key_value("requested_diagnostics", &
                                                     requested_diagnostics)
     call self%modeldb%values%add_key_value(requested_diagnostics_value)
+
+    ! TODO(JC): We should read from the modeldb at this point.
+    !           However, diagnostics are not calculated yet. For JEDI it
+    !           will need all fields at time 0.
+    !
+    !           For now to get forecast to work I will zero the fields.
+    do idx=1, n_variables
+      call self%fields(idx)%zero()
+    end do
+
     self%has_a_modeldb = .true.
   end if
 
