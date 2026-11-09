@@ -31,6 +31,7 @@ module jedi_state_mod
   use log_mod,                        only : log_event,          &
                                              log_scratch_space,  &
                                              LOG_LEVEL_INFO,     &
+                                             LOG_LEVEL_DEBUG,    &
                                              LOG_LEVEL_ERROR
   use model_clock_mod,                only : model_clock_type
 
@@ -200,7 +201,6 @@ subroutine state_initialiser_read( self,     &
         ! Get full diagnostic name. For example "oblen" -> "turbulence__oblen"
         requested_diagnostics(match_count) = trim(self%field_meta_data%get_variable_diagnostic_prefix(idx))//&
           trim(requested_diagnostics(match_count))
-        print*,"State: Added request field: ",requested_diagnostics(match_count)
       end if
     end do
 
@@ -748,12 +748,12 @@ subroutine print( self )
   type(field_collection_type), pointer :: saved_diagnostics
   class(field_parent_type), pointer    :: field_ptr
 
-  nullify(depository, prognostics, diagnostics, saved_diagnostics, field_ptr)
+  nullify( depository, prognostics, diagnostics, saved_diagnostics, field_ptr )
 
-  depository => self%modeldb%fields%get_field_collection("depository")
-  prognostics => self%modeldb%fields%get_field_collection("prognostic_fields")
-  diagnostics => self%modeldb%fields%get_field_collection("diagnostic_fields")
-  saved_diagnostics => self%modeldb%fields%get_field_collection("saved_diagnostics")
+  depository        => self%modeldb%fields%get_field_collection( "depository" )
+  prognostics       => self%modeldb%fields%get_field_collection( "prognostic_fields" )
+  diagnostics       => self%modeldb%fields%get_field_collection( "diagnostic_fields" )
+  saved_diagnostics => self%modeldb%fields%get_field_collection( "saved_diagnostics" )
 
   ! Printing data
   call log_event( "State print ----", LOG_LEVEL_INFO )
@@ -771,26 +771,26 @@ subroutine print( self )
   end do
 
   ! Output contents of modeldb.
-  if ( self%has_a_modeldb ) then
-    write(log_scratch_space, *) "Depository size => ",depository%get_length()
+  if (self%has_a_modeldb) then
+    write( log_scratch_space, * ) "Depository size => ",depository%get_length()
     call log_event(log_scratch_space, LOG_LEVEL_INFO)
-    write(log_scratch_space, *) "Prognostics size => ",prognostics%get_length()
+    write( log_scratch_space, * ) "Prognostics size => ",prognostics%get_length()
     call log_event(log_scratch_space, LOG_LEVEL_INFO)
-    write(log_scratch_space, *) "Diagnostics size => ",diagnostics%get_length()
+    write( log_scratch_space, * ) "Diagnostics size => ",diagnostics%get_length()
     call log_event(log_scratch_space, LOG_LEVEL_INFO)
-    write(log_scratch_space, *) "Saved diagnostics size => ",saved_diagnostics%get_length()
-    call log_event(log_scratch_space, LOG_LEVEL_INFO)
+    write( log_scratch_space, * ) "Saved diagnostics size => ",saved_diagnostics%get_length()
+    call log_event( log_scratch_space, LOG_LEVEL_INFO )
     
     ! DEBUG: Print what diagnostics are available.
     nullify(field_ptr)
     call iterator%initialise(saved_diagnostics)
     do
-      if ( .not.iterator%has_next() ) exit
+      if (.not.iterator%has_next()) exit
       field_ptr => iterator%next()
       select type(field_ptr)
         type is (field_type)
-          write(log_scratch_space, *) "Saved diagnostic ", field_ptr%get_name()
-          call log_event(log_scratch_space, LOG_LEVEL_INFO)
+          write( log_scratch_space, * ) "Saved diagnostic ", field_ptr%get_name()
+          call log_event( log_scratch_space, LOG_LEVEL_INFO )
       end select
     end do
   end if
