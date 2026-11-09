@@ -52,25 +52,26 @@ module jedi_setup_field_meta_data_mod
 
   ! Get the field info
   do ivar = 1, nvars
-    call get_field_info( variable_function_spaces(ivar),           &
-                         variable_is_2d(ivar),                     &
+    call get_field_info( variable_function_spaces(ivar),   &
+                         variable_is_2d(ivar),             &
                          variable_diagnostic_prefix(ivar), &
                          variable_names(ivar) )
   enddo
 
   ! Setup field_meta_data
-  call field_meta_data%initialise( variable_names,                     &
-                                   variable_function_spaces,           &
-                                   variable_is_2d,                     &
+  call field_meta_data%initialise( variable_names,           &
+                                   variable_function_spaces, &
+                                   variable_is_2d,           &
                                    variable_diagnostic_prefix )
 
   end subroutine setup_field_meta_data
 
   !> @brief    Get field meta-data for a given variable name
   !>
-  !> @param [out] function_space The function space enumerator
-  !> @param [out] is_2d          Logical defineing if the field is 2D
-  !> @param [in]  variable_name  The variable name
+  !> @param [out] function_space     The function space enumerator
+  !> @param [out] is_2d              Logical defineing if the field is 2D
+  !> @param [out] diagnostic_prefix  Prefix used when this variable is a diagnostic
+  !> @param [in]  variable_name      The variable name
   subroutine get_field_info(function_space, is_2d, diagnostic_prefix, variable_name)
 
     integer( kind=i_def ),    intent(out) :: function_space

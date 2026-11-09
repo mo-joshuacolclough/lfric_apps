@@ -471,9 +471,10 @@ contains
     if ( LPROF ) call stop_timing( id, 'bl.explicit' )
 
     ! -- Diagnostics
-    ! Check if a diagnostics collection is available to populate.
-    ! If so, copy fields to the diagnostics collection.
-    call save_diags_for_bl_exp(modeldb, oblen)
+    ! Check if an app has requested to hold onto the diagnostic fields.
+    if (modeldb%values%key_value_exists( "requested_diagnostics" )) then
+      call save_diags_for_bl_exp( modeldb, oblen )
+    end if
 
     ! output BL diagnostics
     if (write_diag .and. use_xios_io) then

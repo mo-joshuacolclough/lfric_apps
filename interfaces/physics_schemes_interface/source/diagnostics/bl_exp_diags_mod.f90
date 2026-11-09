@@ -14,6 +14,10 @@ module bl_exp_diags_mod
   use field_collection_mod,          only: field_collection_type
   use field_collection_iterator_mod, only: field_collection_iterator_type
   use integer_field_mod,             only: integer_field_type
+  use log_mod,                       only: log_event,         &
+                                           log_scratch_space, &
+                                           LOG_LEVEL_ERROR,   &
+                                           LOG_LEVEL_DEBUG
   use timing_mod,                    only: start_timing, stop_timing, tik, LPROF
   use initialise_diagnostics_mod,    only: init_diag => init_diagnostic_field
 
@@ -57,19 +61,18 @@ contains
     activate_oblen = .false.
 
     ! Activate fields that are required for caching.
-    call modeldb%values%get_value("requested_diagnostics", requested_diagnostics)
-    do idx=1,size(requested_diagnostics)
-      select case (trim(requested_diagnostics(idx)))
-        case ("turbulence__oblen")
-          activate_oblen = .true.
-      end select
-    end do
+    if (modeldb%values%key_value_exists( "requested_diagnostics" )) then
+      call modeldb%values%get_value( "requested_diagnostics", requested_diagnostics )
+      do idx=1, size( requested_diagnostics )
+        select case ( trim( requested_diagnostics(idx)) )
+          case ("turbulence__oblen")
+            activate_oblen = .true.
+        end select
+      end do
+    end if
 
-    zht_flag = init_diag(zht, 'turbulence__zht', activate=activate_zht)
-    oblen_flag = init_diag(oblen, 'turbulence__oblen', activate=activate_oblen)
-
-    print*,"OBLEN FLAG =>",oblen_flag
-    print*,"ACTIVATE OBLEN? =>",activate_oblen
+    zht_flag = init_diag( zht, 'turbulence__zht', activate=activate_zht )
+    oblen_flag = init_diag( oblen, 'turbulence__oblen', activate=activate_oblen )
 
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
 
@@ -173,12 +176,17 @@ contains
 
     nullify( existing_field )
 
-    if (collection%field_exists(name)) then
-      print*, "overwrite_field: Fetched existing field.", name
-      call collection%get_field(name, existing_field)
+    if (collection%field_exists( name )) then
+      write( log_scratch_space, * ) &
+        "bl_exp_diags_mod::overwrite_field: Fetched existing field: "//trim(name)
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+      call collection%get_field( name, existing_field )
       call field_to_copy%copy_field_serial( existing_field )
     else
-      print*, "overwrite_field: Added field =>", name
+      write( log_scratch_space, * ) &
+        "bl_exp_diags_mod::overwrite_field: Created field: "//trim(name)
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+
       allocate( new_field )
       call field_to_copy%copy_field_serial( new_field )
       call collection%add_field( new_field )
@@ -187,7 +195,7 @@ contains
   end subroutine overwrite_field
 
   !> @brief Save diagnostics to a modeldb.
-  !> @param[inout] modeldb             ModelDB containing the model fields.
+  !> @param[in]    modeldb             ModelDB containing the model fields.
   !> @param[in]    oblen               Obukhov length
   subroutine save_diags_for_bl_exp(modeldb, oblen)
 
@@ -208,37 +216,31 @@ contains
 
     nullify( diagnostic_collection, requested_diagnostics )
 
-    ! Exit early if diagnostics saving has not been requested.
-    ! (i.e, there is no available field collection)
-
-    ! -- DEBUG
-    if (.not. modeldb%values%key_value_exists("requested_diagnostics")) then
-      print*,"NO requested_diagnostics KEY IN MODELDB!"
+    ! Ensure that required modeldb information is setup.
+    ! 1: List of requested varaibles.
+    ! 2: Field collection to cache the variables into.
+    if (.not. modeldb%values%key_value_exists( "requested_diagnostics" )) then
+      log_scratch_space = "bl_exp_diags_mod::save_diags_for_bl_exp: Expected &
+        &'requested_diagnostics' to be available in the modeldb."
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+    end if
+    if (.not. modeldb%fields%field_collection_exists( "saved_diagnostics" )) then
+      log_scratch_space = "bl_exp_diags_mod::save_diags_for_bl_exp: Expected &
+        &field collection 'saved_diagnostics' to be available in the modeldb."
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
     end if
 
-    if (.not. modeldb%fields%field_collection_exists("saved_diagnostics")) then
-      print*,"NO saved_diagnostics COLLECTION IN MODELDB!"
-    end if
-    ! -- DEBUG
-
-    if (.not. modeldb%values%key_value_exists("requested_diagnostics") .or. &
-        .not. modeldb%fields%field_collection_exists("saved_diagnostics")) then
-      return
-    end if
-
-    call modeldb%values%get_value("requested_diagnostics", requested_diagnostics)
-    diagnostic_collection => modeldb%fields%get_field_collection("saved_diagnostics")
+    ! Write requested diagnostic variables to modeldb.
+    call modeldb%values%get_value( "requested_diagnostics", requested_diagnostics )
+    diagnostic_collection => modeldb%fields%get_field_collection( "saved_diagnostics" )
 
     ! Go through requested diagnostics and overwrite those that are available.
-    do idx=1,size(requested_diagnostics)
-      select case (trim(requested_diagnostics(idx)))
+    do idx=1,size( requested_diagnostics )
+      select case (trim( requested_diagnostics(idx) ))
         case ("turbulence__oblen")
-          print*,"WRITING OBLEN"
-          call overwrite_field(diagnostic_collection, oblen%get_name(), oblen)
+          call overwrite_field( diagnostic_collection, oblen%get_name(), oblen )
       end select
     end do
-
-    ! TODO: More variables here.
 
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
   end subroutine save_diags_for_bl_exp

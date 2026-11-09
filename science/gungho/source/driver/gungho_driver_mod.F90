@@ -346,6 +346,8 @@ contains
     end if
 #endif
 
+    ! NOTE(JC): We need to calculate diagnostics on model initialisation.
+
     nullify(mesh, twod_mesh, aerosol_mesh, aerosol_twod_mesh)
     if ( LPROF ) call stop_timing(id, 'gungho_driver.initialise')
 
@@ -495,12 +497,18 @@ contains
 #endif
 
     ! Perform a timestep
+    ! NOTE(JC): Here is where diagnostics are first calculated.
+    !           At time = 0, diagnostics are empty. It is only once the model is
+    !           stepped that diagnostics are calculated (and hence can be cached
+    !           for use in JEDI).
+    !
+    !           Is this related to why XIOS cannot write at time 0? Diagnostics are only
+    !           written to XIOS at this point.
     call gungho_step( mesh, twod_mesh, modeldb, modeldb%clock )
 
     ! Use diagnostic output frequency to determine whether to write
     ! diagnostics on this timestep
 
-    ! NOTE(JC): Add flag here to override for JEDI. (? - should write to field collection regardless)
     if ( ( mod(modeldb%clock%get_step(), diagnostic_frequency) == 0 ) &
          .and. ( write_diag ) ) then
 

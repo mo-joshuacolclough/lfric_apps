@@ -21,10 +21,6 @@ module jedi_state_mod
   use constants_mod,                  only : i_def, l_def, str_def
   use field_mod,                      only : field_type
   use field_collection_mod,           only : field_collection_type
-  use finite_element_config_mod,      only : element_order_h, element_order_v
-  use fs_continuity_mod,              only : W3
-  use function_space_mod,             only : function_space_type
-  use function_space_collection_mod,  only : function_space_collection
   use driver_modeldb_mod,             only : modeldb_type
   use io_context_mod,                 only : io_context_type
   use jedi_geometry_mod,              only : jedi_geometry_type
@@ -36,7 +32,6 @@ module jedi_state_mod
                                              log_scratch_space,  &
                                              LOG_LEVEL_INFO,     &
                                              LOG_LEVEL_ERROR
-  use mesh_mod,                       only : mesh_type
   use model_clock_mod,                only : model_clock_type
 
   implicit none
@@ -152,9 +147,8 @@ subroutine state_initialiser_read( self,     &
   character( len=str_def )               :: diagnostic_prefix
   class( key_value_type ), pointer       :: requested_diagnostics_value
   integer( kind=i_def )                  :: idx, n_variables, match_count
-  type( mesh_type ), pointer             :: mesh
 
-  nullify( requested_diagnostics_value, mesh )
+  nullify( requested_diagnostics_value )
 
   call self%state_initialiser( geometry, config )
 
@@ -198,7 +192,7 @@ subroutine state_initialiser_read( self,     &
     match_count = 0
     do idx=1, n_variables
       diagnostic_prefix = self%field_meta_data%get_variable_diagnostic_prefix(idx)
-      if (trim(diagnostic_prefix) /= "none") then
+      if (diagnostic_prefix /= "none") then
         match_count = match_count + 1
         requested_diagnostics(match_count) = self%field_meta_data%get_variable_name(idx)
         ! Get full diagnostic name. For example "oblen" -> "turbulence__oblen"
@@ -209,17 +203,10 @@ subroutine state_initialiser_read( self,     &
     end do
 
     ! Add this metadata to modeldb.
-    ! NOTE(JC): The below should be possible but the correct
-    !           generic interface is not implemented.
-    !call self%modeldb%values%add_key_value("requested_diagnostics", &
-    !                                       requested_diagnostics)
     requested_diagnostics_value => create_key_value("requested_diagnostics", &
                                                     requested_diagnostics)
     call self%modeldb%values%add_key_value(requested_diagnostics_value)
-
     self%has_a_modeldb = .true.
-    !call self%setup_interface_to_modeldb()
-    !call self%from_modeldb()
   end if
 
 end subroutine state_initialiser_read
@@ -419,18 +406,18 @@ subroutine from_modeldb( self )
   class( jedi_state_type ), intent(inout) :: self
 
   ! Local
-  integer(i_def) :: ivar
+  integer(i_def)                                  :: ivar
   type( atlas_field_interface_type ), allocatable :: field_to_modeldb
-  type(field_type), pointer :: lfric_field_ptr
-  real(real64),     pointer :: atlas_data_ptr(:,:)
-  integer(i_def),   pointer :: horizontal_map_ptr(:)
-  integer(i_def)            :: n_variables
-  character( len=str_def )  :: varname
-  character( len=str_def )  :: diagnostic_prefix
+  type(field_type), pointer                       :: lfric_field_ptr
+  real(real64), pointer                           :: atlas_data_ptr(:,:)
+  integer(i_def), pointer                         :: horizontal_map_ptr(:)
+  integer(i_def)                                  :: n_variables
+  character( len=str_def )                        :: varname
+  character( len=str_def )                        :: diagnostic_prefix
 
-  type( field_collection_type ), pointer :: depository
-  type( field_collection_type ), pointer :: saved_diagnostics
-  type( field_collection_type ), pointer :: active_field_collection
+  type( field_collection_type ), pointer          :: depository
+  type( field_collection_type ), pointer          :: saved_diagnostics
+  type( field_collection_type ), pointer          :: active_field_collection
   !> @todo Will need some sort of transform for winds and
   !>       possibly other higher order elements.
   !>
@@ -451,16 +438,16 @@ subroutine from_modeldb( self )
     varname = self%field_meta_data%get_variable_name(ivar)
     diagnostic_prefix = self%field_meta_data%get_variable_diagnostic_prefix(ivar)
 
-    ! Get the required data.
-    if (trim(diagnostic_prefix) /= "none") then
+    ! Figure out which field collection to get the required data.
+    if (diagnostic_prefix /= "none") then
+      ! NOTE: If a field requested is a diagnostic and it has not been populated
+      !       by the model, then it will not be available in the field collection.
       active_field_collection => saved_diagnostics
       varname = trim(diagnostic_prefix)//trim(varname)
     else
       active_field_collection => depository
     endif
 
-    ! NOTE: If a field requested is a diagnostic and it has not been populated
-    !       by the model, then it will not be available in the field collection.
     call get_model_field( varname, &
                           active_field_collection, lfric_field_ptr )
 
@@ -500,12 +487,12 @@ subroutine setup_interface_to_field_collection( self,             &
   type( field_collection_type ),      intent(inout) :: field_collection
 
   ! Local
-  integer(i_def)            :: ivar
-  type(field_type), pointer :: lfric_field_ptr
-  real(real64),     pointer :: atlas_data_ptr(:,:)
-  integer(i_def),   pointer :: horizontal_map_ptr(:)
-  integer(i_def)            :: n_variables
-  logical                   :: all_variables_exists
+  integer(i_def)                              :: ivar
+  type(field_type), pointer                   :: lfric_field_ptr
+  real(real64), pointer                       :: atlas_data_ptr(:,:)
+  integer(i_def),   pointer                   :: horizontal_map_ptr(:)
+  integer(i_def)                              :: n_variables
+  logical                                     :: all_variables_exists
   type( atlas_field_interface_type ), pointer :: fields_to_modeldb(:)
 
   nullify( fields_to_modeldb )
@@ -771,28 +758,30 @@ subroutine print( self )
     call log_event( log_scratch_space, LOG_LEVEL_INFO )
   end do
 
-  ! DEBUG(JC): Output contents of modeldb.
-  write(log_scratch_space, *) "Depository size => ",depository%get_length()
-  call log_event(log_scratch_space, LOG_LEVEL_INFO)
-  write(log_scratch_space, *) "Prognostics size => ",prognostics%get_length()
-  call log_event(log_scratch_space, LOG_LEVEL_INFO)
-  write(log_scratch_space, *) "Diagnostics size => ",diagnostics%get_length()
-  call log_event(log_scratch_space, LOG_LEVEL_INFO)
-  write(log_scratch_space, *) "Saved diagnostics size => ",saved_diagnostics%get_length()
-  call log_event(log_scratch_space, LOG_LEVEL_INFO)
-
-  
-  nullify(field_ptr)
-  call iterator%initialise(saved_diagnostics)
-  do
-    if ( .not.iterator%has_next() ) exit
-    field_ptr => iterator%next()
-    select type(field_ptr)
-      type is (field_type)
-        write(log_scratch_space, *) "Saved diagnostic ", field_ptr%get_name()
-        call log_event(log_scratch_space, LOG_LEVEL_INFO)
-    end select
-  end do
+  ! Output contents of modeldb.
+  if ( self%has_a_modeldb ) then
+    write(log_scratch_space, *) "Depository size => ",depository%get_length()
+    call log_event(log_scratch_space, LOG_LEVEL_INFO)
+    write(log_scratch_space, *) "Prognostics size => ",prognostics%get_length()
+    call log_event(log_scratch_space, LOG_LEVEL_INFO)
+    write(log_scratch_space, *) "Diagnostics size => ",diagnostics%get_length()
+    call log_event(log_scratch_space, LOG_LEVEL_INFO)
+    write(log_scratch_space, *) "Saved diagnostics size => ",saved_diagnostics%get_length()
+    call log_event(log_scratch_space, LOG_LEVEL_INFO)
+    
+    ! DEBUG: Print what diagnostics are available.
+    nullify(field_ptr)
+    call iterator%initialise(saved_diagnostics)
+    do
+      if ( .not.iterator%has_next() ) exit
+      field_ptr => iterator%next()
+      select type(field_ptr)
+        type is (field_type)
+          write(log_scratch_space, *) "Saved diagnostic ", field_ptr%get_name()
+          call log_event(log_scratch_space, LOG_LEVEL_INFO)
+      end select
+    end do
+  end if
 
 end subroutine print
 
