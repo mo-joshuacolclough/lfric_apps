@@ -20,6 +20,9 @@ module jedi_model_mod
   use jedi_lfric_datetime_mod, only: jedi_datetime_type
   use jedi_lfric_duration_mod, only: jedi_duration_type
   use jedi_state_mod,          only: jedi_state_type
+  use log_mod,                 only: log_event,         &
+                                     log_scratch_space, &
+                                     LOG_LEVEL_ERROR
 
   implicit none
 
