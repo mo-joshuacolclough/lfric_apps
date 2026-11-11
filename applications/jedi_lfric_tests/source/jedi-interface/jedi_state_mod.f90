@@ -458,8 +458,10 @@ subroutine from_modeldb( self )
       !       by the model, then it will not be available in the field collection.
       active_field_collection => saved_diagnostics
       varname = trim(diagnostic_prefix)//trim(varname)
+      print*,"GETTING FROM DIAGNOSTIC", varname
     else
       active_field_collection => depository
+      print*,"GETTING FROM DEPOSITORY", varname
     endif
 
     call get_model_field( varname, &
