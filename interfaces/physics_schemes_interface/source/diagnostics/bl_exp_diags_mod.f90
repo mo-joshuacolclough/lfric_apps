@@ -49,7 +49,6 @@ contains
 
     integer( tik )                    :: id
     integer( kind=i_def )             :: idx
-    logical( kind=l_def )             :: activate_zht
     logical( kind=l_def )             :: activate_oblen
     character( len=str_def ), pointer :: requested_diagnostics(:)
 
@@ -57,7 +56,6 @@ contains
 
     if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
 
-    activate_zht = .false.
     activate_oblen = .false.
 
     ! Activate fields that are required for caching.
@@ -71,7 +69,7 @@ contains
       end do
     end if
 
-    zht_flag = init_diag( zht, 'turbulence__zht', activate=activate_zht )
+    zht_flag = init_diag( zht, 'turbulence__zht' )
     oblen_flag = init_diag( oblen, 'turbulence__oblen', activate=activate_oblen )
 
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
