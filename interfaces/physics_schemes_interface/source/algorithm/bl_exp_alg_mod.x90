@@ -478,6 +478,7 @@ contains
 
     ! output BL diagnostics
     if (write_diag .and. use_xios_io) then
+
       call output_diags_for_bl_exp(ntml, cumulus, bl_type_ind,               &
                                    wvar, dsldzm, mix_len_bm,                 &
                                    gradrinr, rhokh_bl, tke_bl, dtrdz_tq_bl,  &
