@@ -1,5 +1,5 @@
 !-------------------------------------------------------------------------------
-! (c) Crown copyright 2023 Met Office. All rights reserved.
+! (c) Crown copyright 2023-2026 Met Office. All rights reserved.
 ! The file LICENCE, distributed with this code, contains details of the terms
 ! under which the code may be used.
 !-------------------------------------------------------------------------------
@@ -7,11 +7,19 @@
 
 module bl_exp_diags_mod
 
-  use constants_mod,       only: l_def
-  use field_mod,           only: field_type
-  use integer_field_mod,   only: integer_field_type
-  use timing_mod,          only: start_timing, stop_timing, tik, LPROF
-  use initialise_diagnostics_mod,     only : init_diag => init_diagnostic_field
+  use constants_mod,                 only: l_def, str_def, i_def
+  use driver_modeldb_mod,            only: modeldb_type
+  use field_mod,                     only: field_type
+  use field_parent_mod,              only: field_parent_type
+  use field_collection_mod,          only: field_collection_type
+  use field_collection_iterator_mod, only: field_collection_iterator_type
+  use integer_field_mod,             only: integer_field_type
+  use log_mod,                       only: log_event,         &
+                                           log_scratch_space, &
+                                           LOG_LEVEL_ERROR,   &
+                                           LOG_LEVEL_DEBUG
+  use timing_mod,                    only: start_timing, stop_timing, tik, LPROF
+  use initialise_diagnostics_mod,    only: init_diag => init_diagnostic_field
 
   implicit none
 
@@ -20,26 +28,49 @@ module bl_exp_diags_mod
   ! Logical indicating whether diagnostics are requested
   logical( l_def ) :: zht_flag, oblen_flag
 
-  public :: initialise_diags_for_bl_exp
-  public :: output_diags_for_bl_exp
+  public  :: initialise_diags_for_bl_exp
+  public  :: output_diags_for_bl_exp
+  public  :: save_diags_for_bl_exp
+  private :: overwrite_field
 
 contains
 
   !> @brief Initialise fields for locally-computed diagnostics
+  !> @param[in]    modeldb            ModelDB containing the model configuration.
   !> @param[inout] zht                Turbulent mixing height
   !> @param[inout] oblen              Obukhov length
-  subroutine initialise_diags_for_bl_exp(zht, oblen)
+  subroutine initialise_diags_for_bl_exp(modeldb, zht, oblen)
 
     implicit none
 
-    type( field_type ), intent(inout) :: zht
-    type( field_type ), intent(inout) :: oblen
+    type( modeldb_type ), intent(in)    :: modeldb
+    type( field_type ),   intent(inout) :: zht
+    type( field_type ),   intent(inout) :: oblen
+
     integer( tik )                    :: id
+    integer( kind=i_def )             :: idx
+    logical( kind=l_def )             :: activate_oblen
+    character( len=str_def ), pointer :: requested_diagnostics(:)
+
+    nullify( requested_diagnostics )
 
     if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
 
-    zht_flag = init_diag(zht, 'turbulence__zht')
-    oblen_flag = init_diag(oblen, 'turbulence__oblen')
+    activate_oblen = .false.
+
+    ! Activate fields that are required for caching.
+    if (modeldb%values%key_value_exists( "requested_diagnostics" )) then
+      call modeldb%values%get_value( "requested_diagnostics", requested_diagnostics )
+      do idx=1, size( requested_diagnostics )
+        select case ( trim( requested_diagnostics(idx)) )
+          case ("turbulence__oblen")
+            activate_oblen = .true.
+        end select
+      end do
+    end if
+
+    zht_flag = init_diag( zht, 'turbulence__zht' )
+    oblen_flag = init_diag( oblen, 'turbulence__oblen', activate=activate_oblen )
 
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
 
@@ -124,4 +155,91 @@ contains
     if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
 
   end subroutine output_diags_for_bl_exp
+
+  !> @brief Overwrite fields in a field collection only if they are available.
+  !> @param[inout] collection          Field collection to search and overwrite.
+  !> @param[in]    name                Name of the field.
+  !> @param[in]    field_to_copy       New field to replace the existing field.
+  subroutine overwrite_field(collection, name, field_to_copy)
+
+    implicit none
+
+    type( field_collection_type ), intent(inout) :: collection
+    character( len=* ),            intent(in)    :: name
+    type( field_type ),            intent(in)    :: field_to_copy
+
+    ! local
+    type( field_type ), allocatable :: new_field
+    type( field_type ), pointer     :: existing_field
+
+    nullify( existing_field )
+
+    if (collection%field_exists( name )) then
+      write( log_scratch_space, * ) &
+        "bl_exp_diags_mod::overwrite_field: Fetched existing field: "//trim(name)
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+      call collection%get_field( name, existing_field )
+      call field_to_copy%copy_field_serial( existing_field )
+    else
+      write( log_scratch_space, * ) &
+        "bl_exp_diags_mod::overwrite_field: Created field: "//trim(name)
+      call log_event( log_scratch_space, LOG_LEVEL_DEBUG )
+
+      allocate( new_field )
+      call field_to_copy%copy_field_serial( new_field )
+      call collection%add_field( new_field )
+    end if
+
+  end subroutine overwrite_field
+
+  !> @brief Save diagnostics to a modeldb.
+  !> @param[in]    modeldb             ModelDB containing the model fields.
+  !> @param[in]    oblen               Obukhov length
+  subroutine save_diags_for_bl_exp(modeldb, oblen)
+
+    implicit none
+
+    ! Prognostic fields to output
+    type( modeldb_type ), intent(in) :: modeldb
+    type( field_type ),   intent(in) :: oblen
+
+    ! Local vars
+    integer( tik )  :: id
+
+    type( field_collection_type ), pointer :: diagnostic_collection
+    character( len=str_def ), pointer      :: requested_diagnostics(:)
+    integer( kind=i_def )                  :: idx
+
+    if ( LPROF ) call start_timing( id, 'diags.bl_exp' )
+
+    nullify( diagnostic_collection, requested_diagnostics )
+
+    ! Ensure that required modeldb information is setup.
+    ! 1: List of requested varaibles.
+    ! 2: Field collection to cache the variables into.
+    if (.not. modeldb%values%key_value_exists( "requested_diagnostics" )) then
+      log_scratch_space = "bl_exp_diags_mod::save_diags_for_bl_exp: Expected &
+        &'requested_diagnostics' to be available in the modeldb."
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+    end if
+    if (.not. modeldb%fields%field_collection_exists( "saved_diagnostics" )) then
+      log_scratch_space = "bl_exp_diags_mod::save_diags_for_bl_exp: Expected &
+        &field collection 'saved_diagnostics' to be available in the modeldb."
+      call log_event( log_scratch_space, LOG_LEVEL_ERROR )
+    end if
+
+    ! Write requested diagnostic variables to modeldb.
+    call modeldb%values%get_value( "requested_diagnostics", requested_diagnostics )
+    diagnostic_collection => modeldb%fields%get_field_collection( "saved_diagnostics" )
+
+    ! Go through requested diagnostics and overwrite those that are available.
+    do idx=1,size( requested_diagnostics )
+      select case (trim( requested_diagnostics(idx) ))
+        case ("turbulence__oblen")
+          call overwrite_field( diagnostic_collection, oblen%get_name(), oblen )
+      end select
+    end do
+
+    if ( LPROF ) call stop_timing( id, 'diags.bl_exp' )
+  end subroutine save_diags_for_bl_exp
 end module bl_exp_diags_mod

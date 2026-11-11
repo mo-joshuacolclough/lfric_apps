@@ -880,7 +880,7 @@ contains
                          aerosol_fields, recip_l_mo_sea, rhostar,            &
                          t1_sd_2d, q1_sd_2d)
 
-      call bl_exp_alg(modeldb%config,                                     &
+      call bl_exp_alg(modeldb,                                            &
                       theta, rho, exner, mr_n,                            &
                       derived_fields, radiation_fields,                   &
                       microphysics_fields, dmr_mphys, orography_fields,   &

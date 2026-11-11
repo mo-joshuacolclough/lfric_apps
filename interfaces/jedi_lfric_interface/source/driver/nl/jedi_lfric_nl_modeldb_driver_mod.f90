@@ -1,5 +1,5 @@
 !-----------------------------------------------------------------------------
-! (C) Crown copyright 2024 Met Office. All rights reserved.
+! (C) Crown copyright 2024-2026 Met Office. All rights reserved.
 ! The file LICENCE, distributed with this code, contains details of the terms
 ! under which the code may be used.
 !-----------------------------------------------------------------------------
@@ -74,6 +74,8 @@ contains
     call modeldb%fields%add_empty_field_collection( "prognostic_fields", &
                                                     table_len = 100)
     call modeldb%fields%add_empty_field_collection( "diagnostic_fields", &
+                                                    table_len = 100 )
+    call modeldb%fields%add_empty_field_collection( "saved_diagnostics", &
                                                     table_len = 100 )
     call modeldb%fields%add_empty_field_collection("lbc_fields",         &
                                                    table_len = 100)

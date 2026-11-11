@@ -39,78 +39,137 @@ module jedi_setup_field_meta_data_mod
   character( len=str_def ),           intent(in)  :: variable_names(:)
 
   ! Local
-  logical( kind=l_def ), allocatable :: variable_is_2d(:)
-  integer( kind=i_def ), allocatable :: variable_function_spaces(:)
-  integer( kind=i_def )              :: ivar
-  integer( kind=i_def )              :: nvars
+  logical( kind=l_def ), allocatable    :: variable_is_2d(:)
+  character( len=str_def ), allocatable :: variable_diagnostic_prefix(:)
+  integer( kind=i_def ), allocatable    :: variable_function_spaces(:)
+  integer( kind=i_def )                 :: ivar
+  integer( kind=i_def )                 :: nvars
 
   ! Setup arrays
   nvars = size(variable_names)
-  allocate( variable_function_spaces(nvars), variable_is_2d(nvars) )
+  allocate( variable_function_spaces(nvars), variable_is_2d(nvars), &
+            variable_diagnostic_prefix(nvars) )
 
   ! Get the field info
   do ivar = 1, nvars
-    call get_field_info( variable_function_spaces(ivar), &
-                         variable_is_2d(ivar),           &
+    call get_field_info( variable_function_spaces(ivar),   &
+                         variable_is_2d(ivar),             &
+                         variable_diagnostic_prefix(ivar), &
                          variable_names(ivar) )
   enddo
 
   ! Setup field_meta_data
   call field_meta_data%initialise( variable_names,           &
                                    variable_function_spaces, &
-                                   variable_is_2d )
+                                   variable_is_2d,           &
+                                   variable_diagnostic_prefix )
 
   end subroutine setup_field_meta_data
 
   !> @brief    Get field meta-data for a given variable name
   !>
-  !> @param [out] function_space The function space enumerator
-  !> @param [out] is_2d          Logical defineing if the field is 2D
-  !> @param [in]  variable_name  The variable name
-  subroutine get_field_info(function_space, is_2d, variable_name)
+  !> @param [out] function_space     The function space enumerator
+  !> @param [out] is_2d              Logical defineing if the field is 2D
+  !> @param [out] diagnostic_prefix  Prefix used when this variable is a diagnostic
+  !> @param [in]  variable_name      The variable name
+  subroutine get_field_info(function_space, is_2d, diagnostic_prefix, variable_name)
 
     integer( kind=i_def ),    intent(out) :: function_space
     logical( kind=l_def ),    intent(out) :: is_2d
+    character( len=str_def ), intent(out) :: diagnostic_prefix
     character( len=str_def ), intent(in)  :: variable_name
+
+    ! Defaults
+    is_2d = .false.
+    diagnostic_prefix = "none"
 
     ! Return the function_space and is_2d for a given variable name:
     select case ( variable_name )
-      case ( "theta" )
+      case ( "theta" )               ! PROGNOSTIC
         function_space = Wtheta
-        is_2d = .false.
-      case ( "rho" )
+      case ( "bulk_fraction" )       ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "pressure_in_wth" )     ! DIAGNOSTIC - gungho_diagnostics_driver
+        function_space = Wtheta
+        ! diagnostic_prefix = ?
+      case ( "exner_in_wth" )        ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "height_wtheta" )       ! ANCIl
+        function_space = Wtheta
+      case ( "w_in_wth" )            ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "m_v" )                 ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "m_cl" )                ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "m_r" )                 ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "m_s" )                 ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "frozen_fraction" )     ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "liquid_fraction" )     ! PROGNOSTIC
+        function_space = Wtheta
+      case ( "pressure_in_w3" )      ! DIAGNOSTIC - gungho_diagnostics_driver
         function_space = W3
-        is_2d = .false.
-      case ( "exner" )
+        ! diagnostic_prefix = ?
+      case ( "rho" )                 ! PROGNOSTIC
         function_space = W3
-        is_2d = .false.
-      case ( "u_in_w3" )
+      case ( "exner" )               ! PROGNOSTIC
         function_space = W3
-        is_2d = .false.
-      case ( "v_in_w3" )
+      case ( "u_in_w3" )             ! PROGNOSTIC
         function_space = W3
-        is_2d = .false.
-      case ( "w_in_wth" )
-        function_space = Wtheta
-        is_2d = .false.
-      case ( "m_v" )
-        function_space = Wtheta
-        is_2d = .false.
-      case ( "m_cl" )
-        function_space = Wtheta
-        is_2d = .false.
-      case ( "m_r" )
-        function_space = Wtheta
-        is_2d = .false.
-      case ( "m_s" )
-        function_space = Wtheta
-        is_2d = .false.
-      case ( "u10m" )
+      case ( "v_in_w3" )             ! PROGNOSTIC
+        function_space = W3
+      case ( "height_w3" )           ! ANCIL
+        function_space = W3
+      case ( "u10m" )                ! DIAGNOSTIC - bl_imp_diags
         function_space = W3
         is_2d = .true.
-      case ( "land_fraction" )
+        ! diagnostic_prefix = ?
+      case ( "v10m" )                ! DIAGNOSTIC - bl_imp_diags
         function_space = W3
         is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "land_fraction" )       ! DIAGNOSTIC - xios
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "sea_ice_fraction" )    ! DIAGNOSTIC - xios
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "ustar" )               ! PROGNOSTIC
+        function_space = W3
+        is_2d = .true.
+      case ( "pstar" )               ! DIAGNOSTIC - xios
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "pmsl" )                ! DIAGNOSTIC - gungho_diagnostics_driver
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "t1p5m" )               ! DIAGNOSTIC - jules_imp_diags
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "oblen" )               ! DIAGNOSTIC - bl_exp_diags
+        function_space = W3
+        is_2d = .true.
+        diagnostic_prefix = "turbulence__"
+      case ( "rh1p5m" )              ! DIAGNOSTIC - jules_imp_diags
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "grid_surface_temperature" )   ! DIAGNOSTIC - jules_imp_diags
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
+      case ( "orography" )           ! DIAGNOSTIC - xios
+        function_space = W3
+        is_2d = .true.
+        ! diagnostic_prefix = ?
       case default
         write ( log_scratch_space, '(4A)' )                          &
                 "jedi_setup_field_meta_data_mod::get_field_info:: ", &
